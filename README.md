@@ -54,8 +54,10 @@ so its answers fit the lesson.
 - **Resizable window:** drag the bottom-right corner, **⤢ maximize**, or **▁ collapse** to just the title
   bar. Your size/state is remembered.
 - **Readable answers:** replies render as **Markdown** (headings, lists, code blocks, links).
-- **📚 Lesson grows with you:** every answer is folded into the tutorial as a new collapsible explanation
-  section, so the lesson expands to cover *your* questions (saved per page, with a **Clear** button).
+- **📚 Self-updating lesson:** every answer is folded into the tutorial as a new collapsible section, so the
+  lesson grows to cover *your* questions. **Curate it:** click **👍 Useful** to keep a section or
+  **🗑 This can be removed** to drop it. Kept sections are fed back to the tutor as memory, so it builds on
+  what you found useful (saved per page).
 
 - **Bring your own key:** **Anthropic (Claude)** by default, or **OpenAI**. Pick the provider in ⚙.
 - **Your key stays local.** It's saved in your browser's `localStorage` on your machine and sent *only*

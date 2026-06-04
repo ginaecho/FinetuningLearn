@@ -45,6 +45,7 @@
   let history = []; // {role:'user'|'assistant', content:string}
 
   function systemPrompt() {
+    const kept = keptNotesForPrompt();
     return [
       `You are a friendly, rigorous tutor embedded in an interactive lesson titled "${CFG.caseTitle}".`,
       `The learner knows Python and ML basics but is newer to deep-learning training and fine-tuning.`,
@@ -56,7 +57,8 @@
       `- When relevant, tie answers back to the learner's goal: continually fine-tuning a self-driving`,
       `  model cheaply and accurately without catastrophic forgetting.`,
       `- If a question is ambiguous, make a reasonable assumption and say so. Don't refuse.`,
-      `- Use plain text and Markdown. Keep replies focused; avoid walls of text.`
+      `- Use plain text and Markdown. Keep replies focused; avoid walls of text.`,
+      kept ? `\nThe learner has marked these earlier explanations as USEFUL and added them to their personal\nlesson notes. Stay consistent with them, build on them, and avoid repeating them verbatim:\n${kept}` : ``
     ].join("\n");
   }
 
@@ -122,15 +124,27 @@
   #tutor-board-panel h2{font-size:15px;margin:0 0 4px;color:#5cc8ff}
   #tutor-board-panel .tb-sub{font-size:12.5px;color:#9aa3b2;margin-bottom:10px}
   #tutor-board-panel .tb-clear{float:right;background:#222838;color:#e7e9ee;border:0;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+  #tutor-board-panel .tb-count{font-size:12px;color:#9aa3b2;font-weight:400}
   #tutor-board{display:flex;flex-direction:column;gap:10px}
   .tb-empty{color:#6b7689;font-size:13px;padding:10px 0}
   .tb-card{border:1px solid #28304a;border-radius:10px;overflow:hidden;background:#0e1118}
-  .tb-card>summary{cursor:pointer;list-style:none;padding:10px 12px;font-size:13.5px;color:#e7e9ee;font-weight:600;display:flex;gap:8px;align-items:flex-start}
+  .tb-card.kept{border-color:#2f6b4a;background:#0d1512}
+  .tb-card>summary{cursor:pointer;list-style:none;padding:10px 12px;font-size:13.5px;color:#e7e9ee;font-weight:600;display:flex;gap:8px;align-items:center}
   .tb-card>summary::-webkit-details-marker{display:none}
-  .tb-card>summary::before{content:"▶ ";color:#5cc8ff;font-size:11px}
+  .tb-card>summary::before{content:"▶ ";color:#5cc8ff;font-size:11px;flex:none}
   .tb-card[open]>summary::before{content:"▼ ";color:#5cc8ff;font-size:11px}
   .tb-card .tb-num{color:#5cc8ff;flex:none}
-  .tb-a{padding:2px 14px 12px;font-size:13.5px;color:#c4ccda;line-height:1.55}
+  .tb-card .tb-qtext{flex:1}
+  .tb-badge{flex:none;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px}
+  .tb-badge.new{background:#1a2233;color:#7fb6d6}
+  .tb-card.kept .tb-badge{background:#13351f;color:#6ee7a8}
+  .tb-a{padding:2px 14px 10px;font-size:13.5px;color:#c4ccda;line-height:1.55}
+  .tb-actions{display:flex;gap:8px;padding:0 14px 12px;flex-wrap:wrap}
+  .tb-keep,.tb-del{border:0;border-radius:8px;padding:6px 11px;font-size:12px;cursor:pointer}
+  .tb-keep{background:#16321f;color:#6ee7a8;border:1px solid #2f6b4a}
+  .tb-card.kept .tb-keep{background:#1c4a2e;color:#bdfad6}
+  .tb-del{background:#2a1c1c;color:#ff9b8a;border:1px solid #5a2e2e}
+  .tb-keep:hover{filter:brightness(1.15)} .tb-del:hover{filter:brightness(1.15)}
   `;
   const style = document.createElement("style"); style.textContent = css; document.head.appendChild(style);
 
@@ -249,14 +263,16 @@
   const boardPanel = document.createElement("section");
   boardPanel.id = "tutor-board-panel";
   boardPanel.innerHTML =
-    `<button class="tb-clear" title="Remove these added explanations">Clear</button>` +
-    `<h2>📚 Lesson explanations — added from your questions</h2>` +
-    `<div class="tb-sub">As you ask the 💬 tutor, its answers are folded into the tutorial here as new, ` +
-    `collapsible explanation sections — so this lesson grows to cover <em>your</em> questions. Saved for this page.</div>` +
+    `<button class="tb-clear" title="Remove all added explanations">Clear all</button>` +
+    `<h2>📚 Lesson explanations — learned from your questions <span class="tb-count"></span></h2>` +
+    `<div class="tb-sub">This lesson <b>self-updates</b>: every answer from the 💬 tutor is folded in below as a ` +
+    `collapsible section. Curate it — mark <b>👍 Useful</b> to keep a section (kept sections are fed back to the ` +
+    `tutor as memory, so it builds on them), or <b>🗑 This can be removed</b> to drop one. Saved for this page.</div>` +
     `<div id="tutor-board"></div>`;
   const wrap = document.querySelector(".wrap");
   if (wrap) wrap.appendChild(boardPanel); else document.body.insertBefore(boardPanel, fab);
   const boardEl = boardPanel.querySelector("#tutor-board");
+  const countEl = boardPanel.querySelector(".tb-count");
   boardPanel.querySelector(".tb-clear").onclick = () => {
     if (!board.length || confirm("Remove the explanations added from your questions on this page?")) {
       board = []; saveBoard(); renderBoard();
@@ -264,17 +280,43 @@
   };
 
   function saveBoard() { try { localStorage.setItem(BOARD_KEY, JSON.stringify(board)); } catch {} }
+
+  // What the tutor "remembers": entries the learner marked Useful (kept).
+  function keptNotesForPrompt() {
+    const kept = board.filter(c => c.status === "kept");
+    if (!kept.length) return "";
+    return kept.map((c, i) => `(${i + 1}) Q: ${c.q}\n    A: ${c.a.replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
+  }
+
   function renderBoard() {
+    const keptN = board.filter(c => c.status === "kept").length;
+    countEl.textContent = board.length
+      ? `${board.length} added · ${keptN} kept` : "";
     if (!board.length) {
-      boardEl.innerHTML = `<div class="tb-empty">Nothing added yet. Open the tutor (💬, bottom-right) and ask about this page — your questions become explanation sections here.</div>`;
+      boardEl.innerHTML = `<div class="tb-empty">Nothing added yet. Open the tutor (💬, bottom-right) and ask about this page — your questions become explanation sections here, which you can then keep or remove.</div>`;
       return;
     }
-    boardEl.innerHTML = board.map((c, i) =>
-      `<details class="tb-card" open><summary><span class="tb-num">Q${i + 1}.</span>` +
-      `<span>${escapeHtml(c.q)}</span></summary>` +
-      `<div class="tb-a md">${renderMd(c.a)}</div></details>`).join("");
+    boardEl.innerHTML = board.map((c, i) => {
+      const kept = c.status === "kept";
+      return `<details class="tb-card${kept ? " kept" : ""}" open>` +
+        `<summary><span class="tb-num">Q${i + 1}.</span><span class="tb-qtext">${escapeHtml(c.q)}</span>` +
+        (kept ? `<span class="tb-badge">★ kept</span>` : `<span class="tb-badge new">new</span>`) +
+        `</summary>` +
+        `<div class="tb-a md">${renderMd(c.a)}</div>` +
+        `<div class="tb-actions">` +
+        `<button class="tb-keep" data-i="${i}">${kept ? "★ Kept — in tutor memory (click to unkeep)" : "👍 Useful — keep this"}</button>` +
+        `<button class="tb-del" data-i="${i}">🗑 This can be removed</button>` +
+        `</div></details>`;
+    }).join("");
+    boardEl.querySelectorAll(".tb-keep").forEach(b => b.onclick = () => {
+      const i = +b.dataset.i; board[i].status = board[i].status === "kept" ? "new" : "kept";
+      saveBoard(); renderBoard();
+    });
+    boardEl.querySelectorAll(".tb-del").forEach(b => b.onclick = () => {
+      board.splice(+b.dataset.i, 1); saveBoard(); renderBoard();
+    });
   }
-  function addToBoard(q, a) { board.push({ q, a, t: Date.now() }); saveBoard(); renderBoard(); }
+  function addToBoard(q, a) { board.push({ q, a, status: "new", t: Date.now() }); saveBoard(); renderBoard(); }
   renderBoard();
 
   // ---- send ---------------------------------------------------------------
