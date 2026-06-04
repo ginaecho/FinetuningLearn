@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case 00 · Tensors & NN Basics — Animated</title>
+<style>
+  :root{--bg:#0f1117;--panel:#181b24;--ink:#e7e9ee;--muted:#9aa3b2;--accent:#5cc8ff;--accent2:#ff8a5c;--good:#6ee7a8;--warn:#fbbf24}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+  header{padding:24px 28px 8px} h1{margin:0 0 4px;font-size:22px} .sub{color:var(--muted);font-size:14px}
+  .wrap{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 28px 40px}
+  @media(max-width:980px){.wrap{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid #232838;border-radius:14px;padding:16px 18px}
+  .panel.full{grid-column:1/-1}
+  .panel h2{font-size:15px;margin:0 0 10px;color:var(--accent)}
+  canvas{width:100%;background:#0b0d13;border-radius:10px;display:block}
+  .row{display:flex;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap}
+  label{font-size:13px;color:var(--muted);min-width:100px}
+  input[type=range]{flex:1;accent-color:var(--accent)}
+  .val{font-variant-numeric:tabular-nums;min-width:46px;text-align:right;font-size:13px}
+  .note{font-size:13px;color:var(--muted);margin-top:10px}
+  code{background:#0b0d13;padding:1px 5px;border-radius:5px;color:var(--good)}
+  b.k{color:var(--accent2)} b.g{color:var(--good)} b.w{color:var(--warn)} b.a{color:var(--accent)}
+  .stat{font-size:13px;margin-top:8px}
+  button{background:#232838;color:var(--ink);border:1px solid #3a4a66;border-radius:6px;padding:5px 14px;cursor:pointer;font-size:13px}
+  button:hover{background:#2a3346} button.active{background:var(--accent);color:#0f1117;border-color:var(--accent)}
+  details.theory{margin-top:12px;border:1px solid #28304a;border-radius:10px;background:#0e1118}
+  details.theory>summary{cursor:pointer;padding:9px 12px;font-size:13px;color:var(--accent);font-weight:600;list-style:none}
+  details.theory>summary::-webkit-details-marker{display:none}
+  details.theory>summary::before{content:"\25B6 ";font-size:11px}
+  details.theory[open]>summary::before{content:"\25BC "}
+  details.theory .tbody{padding:4px 14px 14px;font-size:13px;color:#c4ccda}
+  details.theory .tbody h4{margin:12px 0 4px;color:var(--ink);font-size:13.5px}
+  details.theory .tbody p{margin:6px 0}
+  details.theory .tbody b.term{color:var(--good)}
+  details.theory .tbody .btnref{color:var(--accent2);font-weight:600}
+  details.theory .tbody ul{margin:6px 0;padding-left:18px}
+  details.theory .tbody li{margin:3px 0}
+  .formula{font-family:ui-monospace,monospace;background:#0b0d13;padding:2px 6px;border-radius:5px;color:#9fe6c0}
+  .btn-row{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Case 00 · Tensors & Neural Network Basics</h1>
+  <div class="sub">The vocabulary you need to co-pilot with an AI agent on any neural network task.</div>
+</header>
+
+<div class="wrap">
+
+  <!-- ===== PANEL 1: Tensor Shapes ===== -->
+  <div class="panel">
+    <h2>1 · Tensor shapes: the language of neural networks</h2>
+    <canvas id="tshape" height="260"></canvas>
+    <div class="btn-row">
+      <button id="btn0d" onclick="setShape('0d')">Scalar</button>
+      <button id="btn1d" class="active" onclick="setShape('1d')">1D Vector</button>
+      <button id="btn2d" onclick="setShape('2d')">2D Matrix</button>
+      <button id="btn3d" onclick="setShape('3d')">3D Tensor</button>
+    </div>
+    <div class="btn-row">
+      <button onclick="doUnsqueeze(0)">unsqueeze(0)</button>
+      <button onclick="doUnsqueeze(-1)">unsqueeze(-1)</button>
+      <button onclick="doSqueeze()">squeeze()</button>
+      <button onclick="resetShape()">Reset</button>
+    </div>
+    <div class="stat" id="shapestat">
+      Shape: <b class="g">(5,)</b> &nbsp; ndim: <b>1</b> &nbsp; numel: <b>5</b>
+    </div>
+    <div class="note">Click the shape buttons, then try <code>unsqueeze</code> and <code>squeeze</code>.
+      Watch how dimensions appear and disappear. The <b>batch dimension</b> (usually dim 0) is why
+      <code>unsqueeze(0)</code> appears everywhere — layers expect <code>(batch, features)</code>.</div>
+
+    <details class="theory"><summary>📖 What are tensors, shapes, and unsqueeze?</summary>
+    <div class="tbody">
+      <h4>What is a tensor?</h4>
+      <p>A <b class="term">tensor</b> is just a multi-dimensional array of numbers. Everything in PyTorch
+      is a tensor: your data, your model's weights, the gradients, the loss value.</p>
+      <ul>
+        <li><b>Scalar</b> (0D): a single number. Shape: <span class="formula">()</span></li>
+        <li><b>Vector</b> (1D): a list. Shape: <span class="formula">(n,)</span></li>
+        <li><b>Matrix</b> (2D): a grid. Shape: <span class="formula">(rows, cols)</span></li>
+        <li><b>3D tensor</b>: a stack of grids. Shape: <span class="formula">(depth, rows, cols)</span></li>
+      </ul>
+
+      <h4>Why do shapes matter?</h4>
+      <p>Every layer expects a specific input shape. <span class="formula">nn.Linear(1, 64)</span> expects
+      the last dimension to be 1. If your tensor is shape <span class="formula">(256,)</span> instead of
+      <span class="formula">(256, 1)</span>, you get a <b>RuntimeError</b>. Shape mismatches are the
+      <b>#1 error</b> in deep learning.</p>
+
+      <h4>What does unsqueeze do?</h4>
+      <p><b class="term">unsqueeze(dim)</b> inserts a new dimension of size 1 at position <code>dim</code>.</p>
+      <ul>
+        <li><span class="formula">(5,)</span> → <code>unsqueeze(0)</code> → <span class="formula">(1, 5)</span> — added a batch dim</li>
+        <li><span class="formula">(5,)</span> → <code>unsqueeze(-1)</code> → <span class="formula">(5, 1)</span> — added a feature dim</li>
+      </ul>
+      <p>This is why the code does <code>x.unsqueeze(1)</code>: it turns 256 bare numbers into 256 samples
+      each with 1 feature, matching what <code>nn.Linear(1, 64)</code> expects.</p>
+
+      <h4>What does squeeze do?</h4>
+      <p><b class="term">squeeze()</b> removes all dimensions of size 1. It's the inverse of unsqueeze.</p>
+    </div></details>
+  </div>
+
+  <!-- ===== PANEL 2: nn.Sequential ===== -->
+  <div class="panel">
+    <h2>2 · Inside nn.Sequential: layers and activations</h2>
+    <canvas id="netw" height="260"></canvas>
+    <div class="row">
+      <label>Input value x</label>
+      <input id="xin" type="range" min="-30" max="30" step="1" value="10">
+      <span class="val" id="xinv">1.0</span>
+    </div>
+    <div class="stat" id="netstat"></div>
+    <div class="note">Drag the input slider. Watch the value transform through each layer.
+      <b class="a">Linear</b> layers multiply + add (stretch/shift). <b class="g">Tanh</b>
+      squishes the result to [-1, 1]. Without activation, stacking layers would just be one big multiply.</div>
+
+    <details class="theory"><summary>📖 What do Linear, Tanh, and Sequential mean?</summary>
+    <div class="tbody">
+      <h4>What is nn.Linear(in, out)?</h4>
+      <p>A <b class="term">linear layer</b> computes <span class="formula">y = Wx + b</span> where
+      <b>W</b> is a weight matrix of shape <span class="formula">(out, in)</span> and <b>b</b> is a
+      bias vector of shape <span class="formula">(out,)</span>. It takes an input with <code>in</code>
+      features and produces an output with <code>out</code> features.</p>
+      <p>Example: <code>nn.Linear(1, 64)</code> takes 1 number in, produces 64 numbers out. That 64-wide
+      vector is a richer representation the next layer can work with.</p>
+
+      <h4>What is an activation function (Tanh)?</h4>
+      <p><b class="term">Tanh</b> squishes any value to the range [-1, 1]. It's a non-linear function —
+      this is critical because without it, stacking linear layers would collapse to a single linear layer
+      (matrix multiply is associative). The non-linearity lets the network learn curves, not just lines.</p>
+      <p>Other activations: <b>ReLU</b> (max(0, x) — zeroes negatives), <b>GELU</b> (smooth ReLU, used
+      in transformers), <b>Sigmoid</b> (squishes to [0, 1]).</p>
+
+      <h4>What is nn.Sequential?</h4>
+      <p><b class="term">nn.Sequential</b> chains layers in order. Data flows through them one by one:
+      <span class="formula">x → Linear → Tanh → Linear → Tanh → Linear → y</span>.
+      It's the simplest way to build a network. For fancier architectures (skip connections, branching),
+      you subclass <code>nn.Module</code> instead.</p>
+
+      <h4>Shape through the network</h4>
+      <p>If input is <span class="formula">(batch, 1)</span>:</p>
+      <ul>
+        <li>Linear(1, 64) → <span class="formula">(batch, 64)</span></li>
+        <li>Tanh → <span class="formula">(batch, 64)</span> (same shape, values squished)</li>
+        <li>Linear(64, 64) → <span class="formula">(batch, 64)</span></li>
+        <li>Tanh → <span class="formula">(batch, 64)</span></li>
+        <li>Linear(64, 1) → <span class="formula">(batch, 1)</span></li>
+      </ul>
+      <p>The shape at each stage is the <b>single most useful debugging tool</b>. Print it when confused.</p>
+    </div></details>
+  </div>
+
+  <!-- ===== PANEL 3: The Training Loop ===== -->
+  <div class="panel full">
+    <h2>3 · The training loop: forward → loss → backward → update</h2>
+    <canvas id="loop" height="200"></canvas>
+    <div class="btn-row">
+      <button onclick="trainStep(1)">Train 1 step</button>
+      <button onclick="trainStep(10)">Train 10 steps</button>
+      <button onclick="trainStep(50)">Train 50 steps</button>
+      <button onclick="resetTraining()">Reset</button>
+    </div>
+    <div class="row">
+      <label>Learning rate</label>
+      <input id="lr" type="range" min="-5" max="-1" step="0.25" value="-3">
+      <span class="val" id="lrv">1e-3</span>
+    </div>
+    <div class="stat" id="loopstat">Step: <b>0</b> &nbsp; Loss: <b>—</b></div>
+    <div class="note">Click <b>Train</b> to step through the loop. The left side shows the 4-step cycle
+      (highlighted as each step runs). The right side plots the loss curve. Try different learning rates:
+      too high (0.1) → loss explodes; too low (1e-5) → barely moves; just right (1e-3) → smooth descent.</div>
+
+    <details class="theory"><summary>📖 What happens in each step of training?</summary>
+    <div class="tbody">
+      <h4>The four steps (every training loop ever)</h4>
+      <ul>
+        <li><b class="term">1. Forward pass</b> — run input through the network to get a prediction.
+        <code>pred = model(x)</code></li>
+        <li><b class="term">2. Compute loss</b> — measure how wrong the prediction is.
+        <code>loss = MSE(pred, target)</code>. MSE = mean of (pred - target)^2.</li>
+        <li><b class="term">3. Backward pass</b> — compute gradients: how much each weight contributed
+        to the error. <code>loss.backward()</code>. PyTorch does this automatically.</li>
+        <li><b class="term">4. Optimizer step</b> — update each weight in the direction that reduces loss.
+        <code>optimizer.step()</code>. How big a step? That's the <b>learning rate</b>.</li>
+      </ul>
+      <p>Before each cycle: <code>optimizer.zero_grad()</code> clears old gradients (they'd accumulate otherwise).</p>
+
+      <h4>What is the optimizer (Adam)?</h4>
+      <p><b class="term">Adam</b> is the default optimizer. It keeps running averages of gradients and
+      their squares (momentum + adaptive learning rate). You rarely need to change it.
+      <code>torch.optim.Adam(model.parameters(), lr=1e-3)</code> — the <code>lr</code> is the
+      learning rate, the most important hyperparameter.</p>
+
+      <h4>What does the <span class="btnref">Learning rate</span> slider show?</h4>
+      <ul>
+        <li><b>Too high (0.1):</b> weights overshoot — loss jumps around or explodes.</li>
+        <li><b>Too low (1e-5):</b> weights barely move — loss crawls, takes forever.</li>
+        <li><b>Just right (~1e-3):</b> smooth, steady decrease.</li>
+      </ul>
+      <p>For <b>fine-tuning</b> (Cases 01+), the learning rate is lower (1e-4 to 2e-4) because you
+      don't want to move far from the pretrained weights.</p>
+
+      <h4>How this connects to everything else</h4>
+      <p>Every technique in this curriculum — fine-tuning, LoRA, QLoRA — uses this same loop.
+      The only things that change: which parameters get updated (LoRA: just the adapters),
+      what precision they're stored in (QLoRA: 4-bit base), and how the data is formatted
+      (SFT: instruction-response pairs).</p>
+    </div></details>
+  </div>
+</div>
+
+<script>
+const dpr = devicePixelRatio || 1;
+function fit(c){ const r = c.getBoundingClientRect(); c.width = r.width*dpr; c.height = c.height*dpr; }
+
+// ---- PANEL 1: Tensor shapes ----
+const tc = document.getElementById('tshape'), tx = tc.getContext('2d');
+fit(tc);
+
+let curShape = [5];
+let curLabel = '1d';
+
+function setShape(type){
+  document.querySelectorAll('.btn-row button.active').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('btn'+type);
+  if(btn) btn.classList.add('active');
+  curLabel = type;
+  if(type === '0d') curShape = [];
+  else if(type === '1d') curShape = [5];
+  else if(type === '2d') curShape = [3, 5];
+  else if(type === '3d') curShape = [2, 3, 5];
+  drawTensor();
+}
+
+function doUnsqueeze(dim){
+  if(dim < 0) dim = curShape.length + dim + 1;
+  if(dim < 0) dim = 0;
+  if(dim > curShape.length) dim = curShape.length;
+  curShape.splice(dim, 0, 1);
+  curLabel = '';
+  document.querySelectorAll('.btn-row button.active').forEach(b => b.classList.remove('active'));
+  drawTensor();
+}
+
+function doSqueeze(){
+  curShape = curShape.filter(d => d !== 1);
+  if(curShape.length === 0 && curLabel !== '0d') curShape = [];
+  curLabel = '';
+  document.querySelectorAll('.btn-row button.active').forEach(b => b.classList.remove('active'));
+  drawTensor();
+}
+
+function resetShape(){ setShape('1d'); }
+
+function drawTensor(){
+  const W = tc.width, H = tc.height;
+  tx.clearRect(0, 0, W, H);
+  const cx = W/2, cy = H/2;
+  const cellW = 36*dpr, cellH = 28*dpr, gap = 3*dpr;
+
+  tx.font = `bold ${14*dpr}px monospace`;
+  tx.textAlign = 'center';
+
+  const shapeStr = curShape.length === 0 ? '()' : '(' + curShape.join(', ') + ')';
+  const ndim = curShape.length;
+  const numel = curShape.length === 0 ? 1 : curShape.reduce((a,b) => a*b, 1);
+
+  if(ndim === 0){
+    // scalar: one box
+    tx.fillStyle = '#5cc8ff';
+    tx.globalAlpha = 0.2;
+    tx.fillRect(cx - cellW/2, cy - cellH/2, cellW, cellH);
+    tx.globalAlpha = 1;
+    tx.strokeStyle = '#5cc8ff';
+    tx.lineWidth = 2*dpr;
+    tx.strokeRect(cx - cellW/2, cy - cellH/2, cellW, cellH);
+    tx.fillStyle = '#e7e9ee';
+    tx.font = `${13*dpr}px monospace`;
+    tx.fillText('3.14', cx, cy + 5*dpr);
+  } else if(ndim === 1 || (ndim === 2 && curShape[0] === 1) || (ndim === 2 && curShape[1] === 1)){
+    // draw as a vector (or unsqueezed vector)
+    const n = numel;
+    const totalW = n * (cellW + gap) - gap;
+    const isRow = ndim < 2 || curShape[1] !== 1;
+
+    for(let i = 0; i < n; i++){
+      let x, y;
+      if(isRow){
+        x = cx - totalW/2 + i*(cellW + gap);
+        y = cy - cellH/2;
+      } else {
+        x = cx - cellW/2;
+        y = cy - (n*(cellH+gap)-gap)/2 + i*(cellH+gap);
+      }
+      tx.fillStyle = '#5cc8ff';
+      tx.globalAlpha = 0.15;
+      tx.fillRect(x, y, cellW, cellH);
+      tx.globalAlpha = 1;
+      tx.strokeStyle = '#5cc8ff';
+      tx.lineWidth = 1.5*dpr;
+      tx.strokeRect(x, y, cellW, cellH);
+      tx.fillStyle = '#9aa3b2';
+      tx.font = `${11*dpr}px monospace`;
+      tx.fillText((Math.sin(i+1)*3).toFixed(1), x+cellW/2, y+cellH/2+4*dpr);
+    }
+    // dimension labels
+    tx.fillStyle = '#5cc8ff';
+    tx.font = `${11*dpr}px sans-serif`;
+    if(isRow && ndim >= 1){
+      const totalDrawn = n * (cellW + gap) - gap;
+      tx.fillText('dim '+(ndim-1)+': '+n, cx, cy + cellH/2 + 18*dpr);
+    }
+    if(!isRow){
+      tx.save();
+      tx.translate(cx - cellW/2 - 14*dpr, cy);
+      tx.rotate(-Math.PI/2);
+      tx.fillText('dim 0: '+n, 0, 0);
+      tx.restore();
+    }
+    if(ndim === 2){
+      tx.fillStyle = '#ff8a5c';
+      tx.font = `${11*dpr}px sans-serif`;
+      if(curShape[0] === 1) tx.fillText('dim 0: 1 (unsqueezed)', cx, cy - cellH/2 - 10*dpr);
+      if(curShape[1] === 1) tx.fillText('dim 1: 1 (unsqueezed)', cx + cellW/2 + 40*dpr, cy);
+    }
+  } else if(ndim === 2){
+    const rows = curShape[0], cols = curShape[1];
+    const totalW = cols*(cellW+gap)-gap, totalH = rows*(cellH+gap)-gap;
+    const sx = cx - totalW/2, sy = cy - totalH/2;
+    for(let r = 0; r < rows; r++){
+      for(let c = 0; c < cols; c++){
+        const x = sx + c*(cellW+gap), y = sy + r*(cellH+gap);
+        const hue = (r*cols+c) / (rows*cols);
+        tx.fillStyle = `hsl(${200+hue*40}, 60%, 25%)`;
+        tx.fillRect(x, y, cellW, cellH);
+        tx.strokeStyle = '#5cc8ff';
+        tx.lineWidth = 1*dpr;
+        tx.strokeRect(x, y, cellW, cellH);
+        tx.fillStyle = '#9aa3b2';
+        tx.font = `${10*dpr}px monospace`;
+        tx.fillText((Math.sin(r*cols+c+1)*2).toFixed(1), x+cellW/2, y+cellH/2+4*dpr);
+      }
+    }
+    tx.fillStyle = '#5cc8ff'; tx.font = `${11*dpr}px sans-serif`;
+    tx.fillText('dim 1: '+cols, cx, sy + totalH + 18*dpr);
+    tx.save(); tx.translate(sx - 14*dpr, cy); tx.rotate(-Math.PI/2);
+    tx.fillText('dim 0: '+rows, 0, 0); tx.restore();
+  } else {
+    // 3D+: draw as stacked grids
+    const depth = curShape[0], rows = curShape.length > 1 ? curShape[1] : 1, cols = curShape.length > 2 ? curShape[2] : 1;
+    const smallW = 22*dpr, smallH = 18*dpr, sg = 2*dpr;
+    const gridW = cols*(smallW+sg)-sg, gridH = rows*(smallH+sg)-sg;
+    const offX = 18*dpr, offY = -14*dpr;
+
+    for(let d = depth-1; d >= 0; d--){
+      const bx = cx - gridW/2 + d*offX - (depth-1)*offX/2;
+      const by = cy - gridH/2 + d*offY - (depth-1)*offY/2;
+      for(let r = 0; r < rows; r++){
+        for(let c = 0; c < cols; c++){
+          const x = bx + c*(smallW+sg), y = by + r*(smallH+sg);
+          const alpha = d === 0 ? 1 : 0.5;
+          tx.globalAlpha = alpha;
+          tx.fillStyle = `hsl(${200 + d*50}, 55%, 25%)`;
+          tx.fillRect(x, y, smallW, smallH);
+          tx.strokeStyle = d === 0 ? '#5cc8ff' : '#3a5a7a';
+          tx.lineWidth = 1*dpr;
+          tx.strokeRect(x, y, smallW, smallH);
+        }
+      }
+    }
+    tx.globalAlpha = 1;
+    tx.fillStyle = '#5cc8ff'; tx.font = `${11*dpr}px sans-serif`;
+    tx.fillText('shape: '+shapeStr, cx, cy + gridH/2 + 30*dpr);
+    tx.fillText('depth='+depth+', rows='+rows+', cols='+cols, cx, cy + gridH/2 + 46*dpr);
+  }
+
+  document.getElementById('shapestat').innerHTML =
+    `Shape: <b class="g">${shapeStr}</b> &nbsp; ndim: <b>${ndim}</b> &nbsp; numel: <b>${numel}</b>`;
+}
+drawTensor();
+
+// ---- PANEL 2: nn.Sequential network ----
+const nc = document.getElementById('netw'), nx = nc.getContext('2d');
+fit(nc);
+
+const layers = [
+  {name:'Linear(1,64)', type:'linear', inF:1, outF:64},
+  {name:'Tanh', type:'act'},
+  {name:'Linear(64,64)', type:'linear', inF:64, outF:64},
+  {name:'Tanh', type:'act'},
+  {name:'Linear(64,1)', type:'linear', inF:64, outF:1},
+];
+
+// simple pseudo-network: random fixed weights for visualization
+function seeded(){let s=17;return()=>{s=(s*1103515245+12345)&0x7fffffff;return(s/0x7fffffff)*2-1;}}
+const rng = seeded();
+const W1 = Array.from({length:8}, ()=>rng()*2);
+const b1 = Array.from({length:8}, ()=>rng()*0.5);
+const W2 = Array.from({length:8}, ()=>rng()*1.5);
+const b2 = Array.from({length:8}, ()=>rng()*0.3);
+const W3 = Array.from({length:8}, ()=>rng()*1);
+const b3 = rng()*0.5;
+
+function fakeForward(x){
+  let h1 = W1.map((w,i) => Math.tanh(w * x + b1[i]));
+  let h2 = h1.map((v,i) => Math.tanh(W2[i] * v + b2[i]));
+  let out = h2.reduce((s,v,i) => s + W3[i]*v, 0) + b3;
+  return {x, h1, h2, out};
+}
+
+function drawNet(){
+  const xVal = +document.getElementById('xin').value / 10;
+  document.getElementById('xinv').textContent = xVal.toFixed(1);
+  const W = nc.width, H = nc.height;
+  nx.clearRect(0, 0, W, H);
+
+  const fwd = fakeForward(xVal);
+  const cols = 5; // x, h1, tanh1=h1, h2, out
+  const nodeR = 6*dpr;
+  const colW = W / (cols + 1);
+
+  // define node positions
+  const positions = [];
+  // col 0: input (1 node)
+  positions.push([{x: colW, y: H/2, val: fwd.x}]);
+  // col 1: hidden 1 (8 nodes)
+  const n1 = [];
+  for(let i = 0; i < 8; i++){
+    n1.push({x: colW*2, y: H*0.1 + (H*0.8)*i/7, val: fwd.h1[i]});
+  }
+  positions.push(n1);
+  // col 2: hidden 2 (8 nodes)
+  const n2 = [];
+  for(let i = 0; i < 8; i++){
+    n2.push({x: colW*3.5, y: H*0.1 + (H*0.8)*i/7, val: fwd.h2[i]});
+  }
+  positions.push(n2);
+  // col 3: output (1 node)
+  positions.push([{x: colW*4.5, y: H/2, val: fwd.out}]);
+
+  // draw connections
+  for(let c = 0; c < positions.length - 1; c++){
+    const from = positions[c], to = positions[c+1];
+    for(const f of from){
+      for(const t of to){
+        const strength = Math.abs(f.val * t.val);
+        nx.strokeStyle = '#2a3346';
+        nx.globalAlpha = Math.min(0.15 + strength * 0.3, 0.6);
+        nx.lineWidth = 0.8*dpr;
+        nx.beginPath(); nx.moveTo(f.x, f.y); nx.lineTo(t.x, t.y); nx.stroke();
+      }
+    }
+  }
+  nx.globalAlpha = 1;
+
+  // draw nodes
+  const colors = ['#5cc8ff', '#6ee7a8', '#6ee7a8', '#ff8a5c'];
+  for(let c = 0; c < positions.length; c++){
+    for(const n of positions[c]){
+      const intensity = Math.abs(n.val);
+      nx.fillStyle = colors[c];
+      nx.globalAlpha = 0.3 + Math.min(intensity, 1) * 0.7;
+      nx.beginPath(); nx.arc(n.x, n.y, nodeR + intensity*2*dpr, 0, 7); nx.fill();
+      nx.globalAlpha = 1;
+      nx.strokeStyle = colors[c];
+      nx.lineWidth = 1.5*dpr;
+      nx.beginPath(); nx.arc(n.x, n.y, nodeR, 0, 7); nx.stroke();
+    }
+  }
+
+  // labels
+  nx.fillStyle = '#9aa3b2'; nx.font = `${11*dpr}px sans-serif`; nx.textAlign = 'center';
+  nx.fillText('x', colW, H*0.1 - 6*dpr);
+  nx.fillText('(1,)', colW, H - 10*dpr);
+  nx.fillStyle = '#6ee7a8';
+  nx.fillText('Linear(1,64)', (colW + colW*2)/2, 14*dpr);
+  nx.fillText('+Tanh', colW*2, H - 10*dpr);
+  nx.fillText('(64,)', colW*2, H*0.1 - 6*dpr);
+  nx.fillText('Linear(64,64)', (colW*2 + colW*3.5)/2, 14*dpr);
+  nx.fillText('+Tanh', colW*3.5, H - 10*dpr);
+  nx.fillText('(64,)', colW*3.5, H*0.1 - 6*dpr);
+  nx.fillStyle = '#ff8a5c';
+  nx.fillText('Linear(64,1)', (colW*3.5 + colW*4.5)/2, 14*dpr);
+  nx.fillText('y', colW*4.5, H*0.1 - 6*dpr);
+  nx.fillText('(1,)', colW*4.5, H - 10*dpr);
+
+  // value displays
+  nx.fillStyle = '#e7e9ee'; nx.font = `bold ${12*dpr}px monospace`;
+  nx.fillText(fwd.x.toFixed(2), colW, H/2 + nodeR + 16*dpr);
+  nx.fillText(fwd.out.toFixed(2), colW*4.5, H/2 + nodeR + 16*dpr);
+
+  document.getElementById('netstat').innerHTML =
+    `Input: <b class="a">${fwd.x.toFixed(2)}</b> → through 5 layers → Output: <b class="k">${fwd.out.toFixed(2)}</b>. `+
+    `Shape flows: (1,) → (64,) → (64,) → (1,). Node brightness = activation magnitude.`;
+}
+document.getElementById('xin').oninput = drawNet;
+drawNet();
+
+// ---- PANEL 3: Training loop ----
+const lc = document.getElementById('loop'), lx = lc.getContext('2d');
+fit(lc);
+
+let tStep = 0;
+let losses = [];
+let simWeights = [0.5, -0.3, 0.8]; // simplified "model"
+let activePhase = -1;
+const phases = ['Forward', 'Loss', 'Backward', 'Update'];
+const phaseColors = ['#5cc8ff', '#ff8a5c', '#fbbf24', '#6ee7a8'];
+
+// simple quadratic loss simulation
+function simLoss(w){
+  let err = 0;
+  for(let i = 0; i < 20; i++){
+    const x = (i/20)*6.28 - 3.14;
+    const target = Math.sin(x);
+    const pred = w[0]*Math.sin(w[1]*x + w[2]);
+    err += (pred - target)**2;
+  }
+  return err / 20;
+}
+
+function trainStep(n){
+  const lr = Math.pow(10, +document.getElementById('lr').value);
+  document.getElementById('lrv').textContent = lr.toExponential(0);
+
+  for(let s = 0; s < n; s++){
+    activePhase = tStep % 4 === 0 ? 0 : -1;
+    // gradient descent step (numerical gradient)
+    const loss0 = simLoss(simWeights);
+    const grad = simWeights.map((w, i) => {
+      const eps = 0.001;
+      const ww = [...simWeights]; ww[i] += eps;
+      return (simLoss(ww) - loss0) / eps;
+    });
+    simWeights = simWeights.map((w, i) => w - lr * grad[i]);
+    const newLoss = simLoss(simWeights);
+    losses.push(newLoss);
+    tStep++;
+  }
+  drawLoop();
+}
+
+function resetTraining(){
+  tStep = 0; losses = [];
+  simWeights = [0.5, -0.3, 0.8];
+  activePhase = -1;
+  drawLoop();
+}
+
+function drawLoop(){
+  const W = lc.width, H = lc.height;
+  lx.clearRect(0, 0, W, H);
+
+  // left half: the 4-step cycle
+  const cw = W * 0.35;
+  const boxW = cw * 0.38, boxH = 36*dpr;
+  const ccx = cw/2, ccy = H/2;
+  const rad = Math.min(cw, H) * 0.3;
+
+  const boxPositions = [
+    {x: ccx, y: ccy - rad},         // top: Forward
+    {x: ccx + rad, y: ccy},         // right: Loss
+    {x: ccx, y: ccy + rad},         // bottom: Backward
+    {x: ccx - rad, y: ccy},         // left: Update
+  ];
+
+  // arrows between boxes
+  for(let i = 0; i < 4; i++){
+    const from = boxPositions[i], to = boxPositions[(i+1)%4];
+    const mx = (from.x + to.x)/2, my = (from.y + to.y)/2;
+    lx.strokeStyle = '#2a3346';
+    lx.lineWidth = 2*dpr;
+    lx.beginPath();
+    lx.moveTo(from.x, from.y);
+    lx.quadraticCurveTo(mx + (ccx-mx)*0.3, my + (ccy-my)*0.3, to.x, to.y);
+    lx.stroke();
+  }
+
+  // boxes
+  for(let i = 0; i < 4; i++){
+    const p = boxPositions[i];
+    const phase = tStep > 0 ? (tStep - 1) % 4 : -1;
+    const isActive = (i === phase);
+    lx.fillStyle = phaseColors[i];
+    lx.globalAlpha = isActive ? 0.35 : 0.12;
+    lx.beginPath();
+    lx.roundRect(p.x - boxW/2, p.y - boxH/2, boxW, boxH, 6*dpr);
+    lx.fill();
+    lx.globalAlpha = 1;
+    lx.strokeStyle = phaseColors[i];
+    lx.lineWidth = isActive ? 2.5*dpr : 1.2*dpr;
+    lx.beginPath();
+    lx.roundRect(p.x - boxW/2, p.y - boxH/2, boxW, boxH, 6*dpr);
+    lx.stroke();
+    lx.fillStyle = '#e7e9ee';
+    lx.font = `${isActive?'bold ':''}${11*dpr}px sans-serif`;
+    lx.textAlign = 'center';
+    lx.fillText(phases[i], p.x, p.y + 4*dpr);
+  }
+
+  // right half: loss curve
+  const px = cw + 30*dpr;
+  const pw = W - px - 20*dpr;
+  const ph = H - 40*dpr;
+  const py = 20*dpr;
+
+  // axes
+  lx.strokeStyle = '#3a4a66';
+  lx.lineWidth = 1*dpr;
+  lx.beginPath();
+  lx.moveTo(px, py); lx.lineTo(px, py + ph); lx.lineTo(px + pw, py + ph);
+  lx.stroke();
+  lx.fillStyle = '#9aa3b2'; lx.font = `${11*dpr}px sans-serif`;
+  lx.textAlign = 'center';
+  lx.fillText('Training steps', px + pw/2, py + ph + 16*dpr);
+  lx.save(); lx.translate(px - 14*dpr, py + ph/2); lx.rotate(-Math.PI/2);
+  lx.fillText('Loss', 0, 0); lx.restore();
+
+  if(losses.length > 0){
+    const maxL = Math.max(...losses, 0.01);
+    const minL = Math.min(...losses);
+    const range = Math.max(maxL - minL, 0.001);
+
+    lx.strokeStyle = '#ff8a5c';
+    lx.lineWidth = 2*dpr;
+    lx.beginPath();
+    for(let i = 0; i < losses.length; i++){
+      const x = px + (i / Math.max(losses.length-1, 1)) * pw;
+      const y = py + ph - ((losses[i] - minL) / range) * ph * 0.9 - ph*0.05;
+      i === 0 ? lx.moveTo(x, y) : lx.lineTo(x, y);
+    }
+    lx.stroke();
+
+    // current loss dot
+    const lastX = px + pw;
+    const lastY = py + ph - ((losses[losses.length-1] - minL) / range) * ph * 0.9 - ph*0.05;
+    lx.fillStyle = '#ff8a5c';
+    lx.beginPath();
+    lx.arc(px + ((losses.length-1)/Math.max(losses.length-1,1))*pw, lastY, 4*dpr, 0, 7);
+    lx.fill();
+
+    lx.fillStyle = '#e7e9ee'; lx.font = `${12*dpr}px monospace`; lx.textAlign = 'right';
+    lx.fillText(losses[losses.length-1].toFixed(4), px + pw, py + 14*dpr);
+  } else {
+    lx.fillStyle = '#3a4a66'; lx.font = `${13*dpr}px sans-serif`; lx.textAlign = 'center';
+    lx.fillText('Click "Train" to start', px + pw/2, py + ph/2);
+  }
+
+  const lr = Math.pow(10, +document.getElementById('lr').value);
+  document.getElementById('lrv').textContent = lr.toExponential(0);
+  document.getElementById('loopstat').innerHTML =
+    `Step: <b>${tStep}</b> &nbsp; Loss: <b>${losses.length ? losses[losses.length-1].toFixed(4) : '—'}</b>`+
+    ` &nbsp; LR: <b>${lr.toExponential(0)}</b>`;
+}
+document.getElementById('lr').oninput = () => {
+  document.getElementById('lrv').textContent = Math.pow(10, +document.getElementById('lr').value).toExponential(0);
+};
+drawLoop();
+
+window.addEventListener('resize', () => location.reload());
+</script>
+
+<!-- AI tutor -->
+<script>
+window.TUTOR_CONFIG = {
+  caseTitle: "Case 00 · Tensors & NN Basics",
+  context: "Interactive page on the fundamentals needed to work with neural networks and AI agents. "
+    + "Panel 1: tensor shapes — visualize 0D (scalar), 1D (vector), 2D (matrix), 3D tensors. Buttons "
+    + "for unsqueeze(0), unsqueeze(-1), squeeze show how dimensions are added/removed. Key concept: "
+    + "the batch dimension and why nn.Linear expects (batch, features). Panel 2: inside nn.Sequential — "
+    + "a network with Linear(1,64)+Tanh, Linear(64,64)+Tanh, Linear(64,1). Input slider shows a value "
+    + "flowing through layers. Node brightness = activation magnitude. Shape annotation at each layer. "
+    + "Panel 3: the training loop as a 4-step cycle (forward, loss, backward, update) with a live loss "
+    + "curve. Train step buttons and learning rate slider. Too high LR = diverge, too low = crawl.",
+  suggestions: [
+    "What's the difference between shape (5,) and (5,1)?",
+    "Why do we need activation functions between linear layers?",
+    "What happens if the learning rate is too high?",
+    "What do I actually need to know vs what can an AI agent do for me?"
+  ]
+};
+</script>
+<script src="../assets/tutor.js"></script>
+</body>
+</html>

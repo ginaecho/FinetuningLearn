@@ -21,6 +21,7 @@ The cases are ordered so each one earns the next. The whole path is built to lan
 
 | # | Case | Level | Core idea you'll own | Status |
 |---|------|-------|----------------------|--------|
+| 00 | **Tensors & NN Basics** — the co-pilot vocabulary | Beginner | Shapes, layers, the training loop; what you must know vs what the agent handles | ✅ Built |
 | 01 | **Foundations** — what *is* fine-tuning? | Medium | Pre-train vs fine-tune; which weights move; over/underfitting | ✅ Built |
 | 02 | **LoRA from scratch** | Medium | Why low-rank adapters work; implement LoRA in ~30 lines | ✅ Built |
 | 03 | **QLoRA on a real LLM** | Medium+ | 4-bit quantization + LoRA; fine-tune on a free Colab T4 | ✅ Built |
