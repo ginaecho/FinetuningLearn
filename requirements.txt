@@ -1,0 +1,17 @@
+# Core training stack for FinetuningLearn.
+# CPU-friendly: these install fine without a GPU (Cases 01-02 run on CPU).
+# For QLoRA / real Llama (Cases 03+) also `pip install bitsandbytes` on an NVIDIA GPU.
+
+torch>=2.1            # tensors + autograd + training. On GPU install the CUDA wheel (see SETUP.md).
+transformers>=4.44   # pretrained models (Llama, GPT-2, BERT, ...)
+peft>=0.11           # LoRA / QLoRA adapters live here
+datasets>=2.19       # load & stream training data
+accelerate>=0.30     # device/precision glue so training "just works"
+
+numpy>=1.24
+matplotlib>=3.7      # plots + animations inside notebooks
+ipywidgets>=8.0      # interactive sliders in notebooks
+
+# Optional (install when you reach the relevant case):
+# bitsandbytes      # 4-bit quantization for QLoRA (NVIDIA GPU only) -> Case 03
+# jupyterlab        # if you don't use VS Code for notebooks
