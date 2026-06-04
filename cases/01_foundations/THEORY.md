@@ -20,6 +20,8 @@ Read this *after* playing with the animation — it'll make far more sense.
 | **Warm vs cold start** | Starting from good weights vs random weights. | Panel 2 ① vs ③ |
 | **Full fine-tuning** | Update *all* weights. | Panel 3 |
 | **LoRA / PEFT** | Update a tiny add-on instead of all weights. | Panel 3; full case 02 |
+| **Sample / batch / epoch / step** | Unit of data / group per update / one full pass / one weight update. | Panel 4 |
+| **Stochastic Gradient Descent (SGD)** | Gradient descent using noisy gradients from random batches. | Panel 4 |
 | **Catastrophic forgetting** | Adapting to a new task makes the model worse at old tasks. | Panel 2 footnote; Case 05 |
 
 ---
@@ -34,6 +36,46 @@ fine-tuning exploits, and it's why a **small learning rate** and **few steps** a
 The flip side, visible in Panel 2: moving to the new task's minimum can move you *away* from the old
 task's minimum → **forgetting**. Cases 05–06 are entirely about this trade-off, which is the heart of your
 self-driving capstone.
+
+---
+
+## Batches & epochs — how data feeds training (Panel 4)
+
+You can't usually show a model all its data at once (millions of samples won't fit in memory), so training
+works through the data in **batches**:
+
+- **Sample** — one example (one image / sentence / (x,y) pair).
+- **Batch (mini-batch)** — a small group of samples processed together before **one** weight update.
+- **Step / iteration** — one weight update, computed from one batch: `w ← w − lr·gradient`.
+- **Epoch** — one complete pass through the **whole** dataset (every batch used once).
+
+The arithmetic that links them:
+
+```
+steps_per_epoch = dataset_size / batch_size
+total_steps     = epochs × steps_per_epoch
+```
+
+Example: 24 samples, batch size 6 → 4 steps/epoch; 5 epochs → 20 updates.
+
+**Why batches (not the whole set, not one sample)?**
+- *Memory*: a batch fits on the GPU; the full dataset doesn't.
+- *Speed*: GPUs process a batch in parallel.
+- *Generalization*: each batch gives a slightly **noisy** gradient. That noise helps escape bad spots and
+  often generalizes better — this randomness is the "stochastic" in **Stochastic Gradient Descent (SGD)**.
+
+**Batch-size trade-off:** small batch → more, noisier steps, less memory, often better generalization but
+slower per epoch. Large batch → fewer, smoother steps, more memory, faster per epoch, may need a tuned lr.
+
+**Tie-in:** fine-tuning is the *same* loop with a small lr and **few epochs** (often 1–3). For your
+self-driving model, each data update = a few epochs over the new batches. Training only on *new* batches is
+a key reason models **forget** old data (Case 05); mixing old samples back into batches (**replay**, Case 06)
+is one fix.
+
+Deeper reading:
+- Google ML Crash Course, *Mini-batch SGD / epochs*:
+  <https://developers.google.com/machine-learning/crash-course/reducing-loss/stochastic-gradient-descent>
+- Distill-style intuition, *Why momentum/SGD noise helps* (skim): <https://distill.pub/2017/momentum/>
 
 ---
 

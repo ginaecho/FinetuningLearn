@@ -16,6 +16,7 @@
    - Panel 1 — drag the learning rate; watch tiny→slow, huge→bouncing.
    - Panel 2 — click ①②③ to feel pre-train → new task → fine-tune.
    - Panel 3 — toggle Full vs LoRA to see how *few* weights LoRA touches.
+   - Panel 4 — run training to watch **batches** feed the model and **epochs** count; drag batch size to see steps/epoch and gradient noise change.
 2. 🧪 Run the smoke test: `python train.py` — see the warm start win in numbers.
 3. 📓 Open **`foundations.ipynb`** — run top to bottom. It plots the fit, animates fine-tuning, and shows a heatmap of which weights moved.
 4. ✅ Do **`challenge.md`**.

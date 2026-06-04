@@ -130,8 +130,9 @@ without leaving the lesson. It calls an LLM API **directly from your browser** �
 4. Ask away. Replies stream in as rendered **Markdown** and the tutor knows which lesson page you're on.
 
 **Window controls:** drag the bottom-right corner to resize, **⤢** to maximize, **▁** to collapse to the
-title bar (state is remembered). **🧠 Q&A board:** each answer is also pinned onto the page as a saved
-study note — it grows from your own questions; use **Clear board** to reset.
+title bar (state is remembered). **📚 Lesson grows with you:** each answer is folded into the tutorial as a
+new collapsible explanation section on the page — the lesson expands to cover your own questions; use
+**Clear** to reset.
 
 **How your key is handled (read this):**
 - Stored in your browser's `localStorage` on **this device only**.

@@ -117,17 +117,20 @@
   .md code{background:#0b0d13;padding:1px 5px;border-radius:5px;color:#6ee7a8;font-size:12.5px}
   .md pre{background:#0b0d13;padding:10px;border-radius:8px;overflow-x:auto;margin:6px 0}
   .md pre code{background:none;padding:0}
-  /* Q&A board (lives in the page, fills from the tutor) */
+  /* Lesson explanations added from your questions (woven into the tutorial) */
   #tutor-board-panel{grid-column:1/-1;background:#181b24;border:1px solid #232838;border-radius:14px;padding:16px 18px}
   #tutor-board-panel h2{font-size:15px;margin:0 0 4px;color:#5cc8ff}
   #tutor-board-panel .tb-sub{font-size:12.5px;color:#9aa3b2;margin-bottom:10px}
   #tutor-board-panel .tb-clear{float:right;background:#222838;color:#e7e9ee;border:0;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
-  #tutor-board{display:flex;flex-direction:column;gap:12px}
+  #tutor-board{display:flex;flex-direction:column;gap:10px}
   .tb-empty{color:#6b7689;font-size:13px;padding:10px 0}
-  .tb-card{border:1px solid #283044;border-radius:12px;overflow:hidden;background:#12151d}
-  .tb-q{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;background:#161a24;font-size:13.5px;color:#e7e9ee;font-weight:600}
-  .tb-q .tb-num{color:#5cc8ff;flex:none}
-  .tb-a{padding:10px 14px;font-size:13.5px;color:#c4ccda;line-height:1.55}
+  .tb-card{border:1px solid #28304a;border-radius:10px;overflow:hidden;background:#0e1118}
+  .tb-card>summary{cursor:pointer;list-style:none;padding:10px 12px;font-size:13.5px;color:#e7e9ee;font-weight:600;display:flex;gap:8px;align-items:flex-start}
+  .tb-card>summary::-webkit-details-marker{display:none}
+  .tb-card>summary::before{content:"▶ ";color:#5cc8ff;font-size:11px}
+  .tb-card[open]>summary::before{content:"▼ ";color:#5cc8ff;font-size:11px}
+  .tb-card .tb-num{color:#5cc8ff;flex:none}
+  .tb-a{padding:2px 14px 12px;font-size:13.5px;color:#c4ccda;line-height:1.55}
   `;
   const style = document.createElement("style"); style.textContent = css; document.head.appendChild(style);
 
@@ -246,16 +249,16 @@
   const boardPanel = document.createElement("section");
   boardPanel.id = "tutor-board-panel";
   boardPanel.innerHTML =
-    `<button class="tb-clear" title="Clear this board">Clear board</button>` +
-    `<h2>🧠 Your Q&amp;A board</h2>` +
-    `<div class="tb-sub">Every answer you get from the 💬 tutor gets pinned here as a study note — ` +
-    `it grows from <em>your</em> questions and is saved for this page.</div>` +
+    `<button class="tb-clear" title="Remove these added explanations">Clear</button>` +
+    `<h2>📚 Lesson explanations — added from your questions</h2>` +
+    `<div class="tb-sub">As you ask the 💬 tutor, its answers are folded into the tutorial here as new, ` +
+    `collapsible explanation sections — so this lesson grows to cover <em>your</em> questions. Saved for this page.</div>` +
     `<div id="tutor-board"></div>`;
   const wrap = document.querySelector(".wrap");
   if (wrap) wrap.appendChild(boardPanel); else document.body.insertBefore(boardPanel, fab);
   const boardEl = boardPanel.querySelector("#tutor-board");
   boardPanel.querySelector(".tb-clear").onclick = () => {
-    if (!board.length || confirm("Clear all pinned Q&A notes for this page?")) {
+    if (!board.length || confirm("Remove the explanations added from your questions on this page?")) {
       board = []; saveBoard(); renderBoard();
     }
   };
@@ -263,13 +266,13 @@
   function saveBoard() { try { localStorage.setItem(BOARD_KEY, JSON.stringify(board)); } catch {} }
   function renderBoard() {
     if (!board.length) {
-      boardEl.innerHTML = `<div class="tb-empty">No notes yet. Open the tutor (💬, bottom-right) and ask about this page.</div>`;
+      boardEl.innerHTML = `<div class="tb-empty">Nothing added yet. Open the tutor (💬, bottom-right) and ask about this page — your questions become explanation sections here.</div>`;
       return;
     }
     boardEl.innerHTML = board.map((c, i) =>
-      `<div class="tb-card"><div class="tb-q"><span class="tb-num">Q${i + 1}.</span>` +
-      `<span>${escapeHtml(c.q)}</span></div>` +
-      `<div class="tb-a md">${renderMd(c.a)}</div></div>`).join("");
+      `<details class="tb-card" open><summary><span class="tb-num">Q${i + 1}.</span>` +
+      `<span>${escapeHtml(c.q)}</span></summary>` +
+      `<div class="tb-a md">${renderMd(c.a)}</div></details>`).join("");
   }
   function addToBoard(q, a) { board.push({ q, a, t: Date.now() }); saveBoard(); renderBoard(); }
   renderBoard();
