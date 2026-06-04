@@ -1,0 +1,20 @@
+# Never commit API keys or secrets
+*.key
+*.pem
+.env
+.env.*
+secrets.*
+**/apikey*
+**/api_key*
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

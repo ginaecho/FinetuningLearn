@@ -45,6 +45,23 @@ The cases are ordered so each one earns the next. The whole path is built to lan
 
 ---
 
+## 💬 Ask-the-tutor (in the animations)
+
+Every `animation.html` has a **floating "💬 Ask tutor" button**. Click it, paste your API key once
+(⚙ settings), and ask questions about whatever you're looking at — the tutor is given the page's context
+so its answers fit the lesson.
+
+- **Bring your own key:** **Anthropic (Claude)** by default, or **OpenAI**. Pick the provider in ⚙.
+- **Your key stays local.** It's saved in your browser's `localStorage` on your machine and sent *only*
+  to the provider you choose (Claude calls use Anthropic's official direct-browser-access header). It is
+  **never** written into the HTML or committed to git.
+- **Where to get a key:** Anthropic → <https://console.anthropic.com/settings/keys> · OpenAI → <https://platform.openai.com/api-keys>.
+- ⚠️ Don't type your key on a shared/public computer, and don't paste a key into any file in this repo.
+
+See [`SETUP.md` §7](./SETUP.md#7-in-page-ai-tutor-optional) for details.
+
+---
+
 ## Your capstone question (Case 07)
 
 > *"In fine-tuning for an autonomous car, when new memory/data and new training arrive, how do I fine-tune in the best way for cost, efficiency, and accuracy — and how do I overcome catastrophic forgetting?"*

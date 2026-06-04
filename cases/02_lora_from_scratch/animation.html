@@ -167,5 +167,25 @@ dEl.oninput=drawScale;r2El.oninput=drawScale;drawScale();
 
 window.addEventListener('resize',()=>location.reload());
 </script>
+
+<!-- AI tutor: ask questions about this page. Bring your own API key (Claude or OpenAI). -->
+<script>
+window.TUTOR_CONFIG = {
+  caseTitle: "Case 02 · LoRA from scratch",
+  context: "Interactive page on LoRA (Low-Rank Adaptation). Panel 1: the weight UPDATE ΔW is "
+    + "approximated by B·A; a rank slider r shows reconstruction error and the parameter ratio "
+    + "r*(in+out) vs in*out. Panel 2: wiring diagram — forward pass y = Wx + (B·A)x*(alpha/r) with W "
+    + "frozen (gray) and A,B trained (green); B initialized to zero so training starts equal to the "
+    + "pretrained model; weights can be merged for free inference. Panel 3: at LLM scale (e.g. 4096x4096, "
+    + "r=8) LoRA trains ~0.4% of params. Core ideas: low-rank updates, rank r, alpha scaling, freezing "
+    + "the base, merging, and per-task adapters as a route around catastrophic forgetting.",
+  suggestions: [
+    "Why is a weight update usually low-rank?",
+    "How do I choose rank r and alpha?",
+    "How do per-task adapters help with forgetting?"
+  ]
+};
+</script>
+<script src="../assets/tutor.js"></script>
 </body>
 </html>

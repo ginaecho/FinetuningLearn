@@ -191,5 +191,24 @@ loopGrid();
 
 window.addEventListener('resize',()=>{ [land,ft,grid].forEach(c=>{c.width=0;}); location.reload(); });
 </script>
+
+<!-- AI tutor: ask questions about this page. Bring your own API key (Claude or OpenAI). -->
+<script>
+window.TUTOR_CONFIG = {
+  caseTitle: "Case 01 · Foundations",
+  context: "Interactive page on the basics of fine-tuning. Panel 1: gradient descent on a 1-D loss "
+    + "landscape (a ball rolling downhill; learning-rate slider shows tiny=slow, huge=overshoot). "
+    + "Panel 2: pre-train vs fine-tune as the same hill with different start points; a new task shifts "
+    + "the minimum and fine-tuning reaches it in a few small steps. Panel 3: full fine-tuning (updates "
+    + "~100% of weights) vs LoRA (updates ~4%). Core ideas: loss surfaces, learning rate, warm start vs "
+    + "cold start, and a first hint of catastrophic forgetting.",
+  suggestions: [
+    "Why does a warm start beat training from scratch?",
+    "What exactly is the learning rate doing here?",
+    "How does this connect to catastrophic forgetting?"
+  ]
+};
+</script>
+<script src="../assets/tutor.js"></script>
 </body>
 </html>
