@@ -123,7 +123,10 @@
   #tutor-board-panel{grid-column:1/-1;background:#181b24;border:1px solid #232838;border-radius:14px;padding:16px 18px}
   #tutor-board-panel h2{font-size:15px;margin:0 0 4px;color:#5cc8ff}
   #tutor-board-panel .tb-sub{font-size:12.5px;color:#9aa3b2;margin-bottom:10px}
-  #tutor-board-panel .tb-clear{float:right;background:#222838;color:#e7e9ee;border:0;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+  #tutor-board-panel .tb-tools{float:right;display:flex;gap:8px}
+  #tutor-board-panel .tb-clear{background:#222838;color:#e7e9ee;border:0;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+  #tutor-board-panel .tb-export{background:#16321f;color:#6ee7a8;border:1px solid #2f6b4a;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+  #tutor-board-panel .tb-export:hover,#tutor-board-panel .tb-clear:hover{filter:brightness(1.15)}
   #tutor-board-panel .tb-count{font-size:12px;color:#9aa3b2;font-weight:400}
   #tutor-board{display:flex;flex-direction:column;gap:10px}
   .tb-empty{color:#6b7689;font-size:13px;padding:10px 0}
@@ -263,11 +266,16 @@
   const boardPanel = document.createElement("section");
   boardPanel.id = "tutor-board-panel";
   boardPanel.innerHTML =
-    `<button class="tb-clear" title="Remove all added explanations">Clear all</button>` +
+    `<div class="tb-tools">` +
+      `<button class="tb-export" title="Download kept sections as Markdown to paste into THEORY.md">⭐ Promote kept → Markdown</button>` +
+      `<button class="tb-clear" title="Remove all added explanations">Clear all</button>` +
+    `</div>` +
     `<h2>📚 Lesson explanations — learned from your questions <span class="tb-count"></span></h2>` +
     `<div class="tb-sub">This lesson <b>self-updates</b>: every answer from the 💬 tutor is folded in below as a ` +
     `collapsible section. Curate it — mark <b>👍 Useful</b> to keep a section (kept sections are fed back to the ` +
-    `tutor as memory, so it builds on them), or <b>🗑 This can be removed</b> to drop one. Saved for this page.</div>` +
+    `tutor as memory, so it builds on them), or <b>🗑 This can be removed</b> to drop one. ` +
+    `<b>⭐ Promote</b> downloads your kept sections as Markdown to paste into this case's <code>THEORY.md</code> ` +
+    `— making them a permanent part of the tutorial. Saved per page.</div>` +
     `<div id="tutor-board"></div>`;
   const wrap = document.querySelector(".wrap");
   if (wrap) wrap.appendChild(boardPanel); else document.body.insertBefore(boardPanel, fab);
@@ -278,6 +286,7 @@
       board = []; saveBoard(); renderBoard();
     }
   };
+  boardPanel.querySelector(".tb-export").onclick = exportKept;
 
   function saveBoard() { try { localStorage.setItem(BOARD_KEY, JSON.stringify(board)); } catch {} }
 
@@ -317,6 +326,34 @@
     });
   }
   function addToBoard(q, a) { board.push({ q, a, status: "new", t: Date.now() }); saveBoard(); renderBoard(); }
+
+  // "Promote to permanent tutorial": download kept sections as a Markdown file
+  // the learner can paste into the case's THEORY.md (browsers can't write files).
+  function exportKept() {
+    const kept = board.filter(c => c.status === "kept");
+    const use = kept.length ? kept : board;
+    if (!use.length) { alert("Nothing to promote yet. Ask the tutor, then mark sections 👍 Useful."); return; }
+    const today = new Date().toISOString().slice(0, 10);
+    const md = `## ${CFG.caseTitle} — explanations promoted from the tutor (${today})\n\n` +
+      `> Added from the in-page tutor and marked Useful by the learner.\n\n` +
+      use.map(c => `### ${c.q.trim()}\n\n${c.a.trim()}\n`).join("\n---\n\n");
+    const fname = "lesson-notes-" +
+      CFG.caseTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + ".md";
+    try {
+      const blob = new Blob([md], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = fname; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      // fallback: copy to clipboard
+      if (navigator.clipboard) navigator.clipboard.writeText(md);
+      alert("Couldn't download here. The Markdown was copied to your clipboard — paste it into THEORY.md.");
+      return;
+    }
+    const n = use.length, src = kept.length ? "kept" : "all";
+    setTimeout(() => alert(`Downloaded ${fname} with ${n} ${src} section(s).\n\nPaste its contents into this case's THEORY.md to make them permanent.`), 100);
+  }
+
   renderBoard();
 
   // ---- send ---------------------------------------------------------------
