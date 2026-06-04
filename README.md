@@ -7,7 +7,7 @@ Each **case** has three layers so you can learn the way that suits you:
 | Layer | File | What it gives you |
 |-------|------|-------------------|
 | 🎬 **Animation** | `animation.html` | Open in a browser. Sliders + animated canvases build intuition *before* any math. |
-| 📓 **Notebook** | `*.ipynb` | Runnable Jupyter notebook: theory refresher → code → experiment. Runs on CPU. |
+| 📓 **Notebook** | `*.ipynb` | Runnable Jupyter notebook: theory refresher → code → experiment. Cases 01-02 run on CPU; from Case 03 onward, notebooks are **Colab-first** (free T4 GPU). |
 | 🧪 **Your turn** | `challenge.md` | An open problem to solve yourself, with hints and a checklist. |
 
 > **New here?** Read [`SETUP.md`](./SETUP.md) first to install PyTorch + LoRA/QLoRA and hook up your local Llama.
@@ -23,7 +23,7 @@ The cases are ordered so each one earns the next. The whole path is built to lan
 |---|------|-------|----------------------|--------|
 | 01 | **Foundations** — what *is* fine-tuning? | Medium | Pre-train vs fine-tune; which weights move; over/underfitting | ✅ Built |
 | 02 | **LoRA from scratch** | Medium | Why low-rank adapters work; implement LoRA in ~30 lines | ✅ Built |
-| 03 | **QLoRA on a real LLM** | Medium+ | 4-bit quantization + LoRA; fine-tune Llama on one GPU | 🔜 Next |
+| 03 | **QLoRA on a real LLM** | Medium+ | 4-bit quantization + LoRA; fine-tune on a free Colab T4 | ✅ Built |
 | 04 | **Instruction / SFT tuning** | Pro-ish | Datasets, chat templates, eval; measure if it actually learned | 🔜 |
 | 05 | **Catastrophic forgetting — see it happen** | Pro-ish | Train task B, watch task A collapse; *measure* forgetting | 🔜 |
 | 06 | **Continual learning toolkit** | Pro | Replay, EWC, LoRA-per-task, distillation — when to use which | 🔜 |
@@ -39,7 +39,7 @@ The cases are ordered so each one earns the next. The whole path is built to lan
 2. **Pick a case folder** under [`cases/`](./cases/), start with `01_foundations`.
 3. In each folder:
    - Open `animation.html` in your browser → play with it for 5 min.
-   - Open the `.ipynb` in Jupyter/VS Code → run top to bottom, then tweak.
+   - Open the `.ipynb` — Cases 01-02 run locally; **from Case 03 onward, open in Google Colab** (free T4 GPU, no install needed). Each notebook has a setup cell that installs everything.
    - Try `challenge.md` → solve it, then compare with notes.
 4. Come back and we build the next case together.
 

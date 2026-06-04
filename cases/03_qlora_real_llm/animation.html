@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case 03 · QLoRA on a real LLM — Animated</title>
+<style>
+  :root{--bg:#0f1117;--panel:#181b24;--ink:#e7e9ee;--muted:#9aa3b2;--accent:#5cc8ff;--accent2:#ff8a5c;--good:#6ee7a8;--warn:#fbbf24}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+  header{padding:24px 28px 8px} h1{margin:0 0 4px;font-size:22px} .sub{color:var(--muted);font-size:14px}
+  .wrap{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 28px 40px}
+  @media(max-width:980px){.wrap{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid #232838;border-radius:14px;padding:16px 18px}
+  .panel.full{grid-column:1/-1}
+  .panel h2{font-size:15px;margin:0 0 10px;color:var(--accent)}
+  canvas{width:100%;background:#0b0d13;border-radius:10px;display:block}
+  .row{display:flex;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap}
+  label{font-size:13px;color:var(--muted);min-width:100px}
+  input[type=range]{flex:1;accent-color:var(--accent)}
+  .val{font-variant-numeric:tabular-nums;min-width:46px;text-align:right;font-size:13px}
+  .note{font-size:13px;color:var(--muted);margin-top:10px}
+  code{background:#0b0d13;padding:1px 5px;border-radius:5px;color:var(--good)}
+  b.k{color:var(--accent2)} b.g{color:var(--good)} b.w{color:var(--warn)}
+  .stat{font-size:13px;margin-top:8px}
+  details.theory{margin-top:12px;border:1px solid #28304a;border-radius:10px;background:#0e1118}
+  details.theory>summary{cursor:pointer;padding:9px 12px;font-size:13px;color:var(--accent);font-weight:600;list-style:none}
+  details.theory>summary::-webkit-details-marker{display:none}
+  details.theory>summary::before{content:"\25B6 ";font-size:11px}
+  details.theory[open]>summary::before{content:"\25BC "}
+  details.theory .tbody{padding:4px 14px 14px;font-size:13px;color:#c4ccda}
+  details.theory .tbody h4{margin:12px 0 4px;color:var(--ink);font-size:13.5px}
+  details.theory .tbody p{margin:6px 0}
+  details.theory .tbody b.term{color:var(--good)}
+  details.theory .tbody .btnref{color:var(--accent2);font-weight:600}
+  details.theory .tbody ul{margin:6px 0;padding-left:18px}
+  details.theory .tbody li{margin:3px 0}
+  .formula{font-family:ui-monospace,monospace;background:#0b0d13;padding:2px 6px;border-radius:5px;color:#9fe6c0}
+  .bar-group{display:flex;gap:14px;align-items:flex-end;justify-content:center;height:220px;padding:0 12px}
+  .bar-col{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;max-width:130px}
+  .bar-stack{width:100%;display:flex;flex-direction:column-reverse;border-radius:6px;overflow:hidden}
+  .bar-seg{transition:height .3s ease}
+  .bar-label{font-size:11px;color:var(--muted);text-align:center}
+  .bar-total{font-size:12px;font-weight:700}
+  .legend-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;justify-content:center}
+  .legend-item{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
+  .legend-swatch{width:12px;height:12px;border-radius:3px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Case 03 · QLoRA on a real LLM</h1>
+  <div class="sub">Quantize the base to 4-bit, train a tiny LoRA adapter on top — fine-tune an 8B model on a free GPU.</div>
+</header>
+
+<div class="wrap">
+
+  <!-- ===== PANEL 1: Quantization visualizer ===== -->
+  <div class="panel">
+    <h2>1 · Quantization: fewer bits, smaller model</h2>
+    <canvas id="quant" height="220"></canvas>
+    <div class="row">
+      <label>Bit width</label>
+      <input id="bits" type="range" min="2" max="16" step="2" value="4">
+      <span class="val" id="bitsv">4-bit</span>
+    </div>
+    <div class="stat" id="qstat">
+      fp16 → <b class="g">4-bit</b>: model shrinks from <b>16 GB</b> to <b class="g">~4 GB</b>.
+      Quantization error: <b id="qerr">--</b>
+    </div>
+    <div class="note">Each vertical bar is one weight. <b class="k">Orange</b> = true fp16 value;
+      <b class="g">green</b> = quantized value snapped to the nearest level.
+      Fewer bits → fewer levels → more rounding error, but <em>much</em> less memory.</div>
+
+    <details class="theory"><summary>📖 What is quantization, and what is NF4?</summary>
+    <div class="tbody">
+      <h4>What am I looking at?</h4>
+      <p>Each bar pair shows one model weight. The <b class="term">orange bar</b> is the true fp16 value
+      (16 bits = 65,536 possible levels). The <b class="term">green bar</b> is what you get after
+      quantizing — rounding to the nearest level available at that bit width.</p>
+
+      <h4>What does the <span class="btnref">Bit width</span> slider do?</h4>
+      <ul>
+        <li><b>16-bit:</b> no quantization — green matches orange perfectly. Full memory cost.</li>
+        <li><b>8-bit:</b> 256 levels. Green is very close to orange. Model is half the size.</li>
+        <li><b>4-bit:</b> only 16 levels. Some rounding visible, but model is 1/4 the size. This is what QLoRA uses.</li>
+        <li><b>2-bit:</b> only 4 levels. Very lossy — too aggressive for most uses.</li>
+      </ul>
+
+      <h4>What is NF4 (Normal Float 4)?</h4>
+      <p><b class="term">NF4</b> is a 4-bit format designed for neural network weights, which are roughly
+      normally distributed (bell curve). Instead of spacing the 16 levels evenly, NF4 packs more levels
+      near zero (where most weights live) and fewer at the extremes. This gives lower error than naive
+      4-bit for the same memory cost.</p>
+
+      <h4>What is double quantization?</h4>
+      <p>Quantization stores a scale factor per block of weights. <b class="term">Double quantization</b>
+      quantizes <i>those scale factors</i> too — saving another ~0.4 GB on a 7B model. Free accuracy-wise.</p>
+
+      <h4>How it connects to the capstone</h4>
+      <p>Quantization is how you fit a big model on a small GPU. For the self-driving capstone, this means
+      you can iterate on fine-tuning experiments on a single affordable GPU instead of renting expensive
+      multi-GPU clusters.</p>
+    </div></details>
+  </div>
+
+  <!-- ===== PANEL 2: VRAM budget ===== -->
+  <div class="panel">
+    <h2>2 · VRAM budget: where the memory goes</h2>
+    <div class="bar-group" id="bars"></div>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-swatch" style="background:#6b7689"></div>Weights</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#ff8a5c"></div>Optimizer</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#5cc8ff"></div>Gradients</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#9f7aea"></div>Activations</div>
+    </div>
+    <div class="row">
+      <label>Model size</label>
+      <input id="msize" type="range" min="1" max="13" step="1" value="7">
+      <span class="val" id="msv">7B</span>
+    </div>
+    <div class="stat" id="vstat"></div>
+    <div class="note">Compare three strategies for the same model. The <b class="w">yellow dashed line</b>
+      is a free Colab T4 (16 GB). QLoRA is the only one that fits comfortably.</div>
+
+    <details class="theory"><summary>📖 Where does all the VRAM go?</summary>
+    <div class="tbody">
+      <h4>What are the stacked bars?</h4>
+      <p>Each bar is total GPU memory for one training strategy. The segments show what eats the memory:</p>
+      <ul>
+        <li><b class="term">Weights:</b> the model itself. fp16 = 2 bytes/param. 4-bit = 0.5 bytes/param.</li>
+        <li><b class="term">Optimizer state:</b> Adam keeps momentum + variance per <i>trainable</i> param =
+        2 extra fp32 numbers = 8 bytes each. Full fine-tune: all params are trainable. QLoRA: only LoRA
+        params (~0.5% of total).</li>
+        <li><b class="term">Gradients:</b> one fp16 number per trainable param = 2 bytes each.</li>
+        <li><b class="term">Activations:</b> intermediate values saved for backprop. Roughly proportional to
+        batch size and sequence length. We estimate ~1-2 GB here; gradient checkpointing can halve it.</li>
+      </ul>
+
+      <h4>What does the <span class="btnref">Model size</span> slider do?</h4>
+      <p>Scales everything: weights, optimizer, gradients all grow linearly with parameter count.
+      Watch how Full FT explodes past any consumer GPU while QLoRA stays under 16 GB even at 13B.</p>
+
+      <h4>Why Full FT is 4x the weight memory</h4>
+      <p>Weights (2B/param) + optimizer (8B/param) + gradients (2B/param) = 12 bytes/param vs 2 for
+      inference. A 7B model: 14 GB just for weights → ~84 GB to train. Nobody does this on one GPU.</p>
+
+      <h4>Why QLoRA wins</h4>
+      <p>Weights in 4-bit (~0.5B/param) + optimizer only for LoRA params (~0.5% of total) + gradients
+      only for LoRA. The big base model is frozen and compressed — the expensive per-param costs apply
+      only to the tiny adapter.</p>
+    </div></details>
+  </div>
+
+  <!-- ===== PANEL 3: The QLoRA pipeline ===== -->
+  <div class="panel full">
+    <h2>3 · The QLoRA pipeline: load → freeze → adapt → train → merge</h2>
+    <canvas id="pipe" height="180"></canvas>
+    <div class="note" style="margin-top:12px">
+      The five steps in code:
+      <code>BitsAndBytesConfig(load_in_4bit=True)</code> →
+      <code>AutoModel.from_pretrained(..., quantization_config=bnb)</code> →
+      <code>LoraConfig(r=8, ...)</code> →
+      <code>get_peft_model(model, lora_config)</code> →
+      <code>SFTTrainer(...).train()</code> →
+      <code>model.merge_and_unload()</code>
+    </div>
+    <details class="theory"><summary>📖 Walk me through each pipeline step</summary>
+    <div class="tbody">
+      <h4>Step 1: Load in 4-bit</h4>
+      <p><span class="formula">BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
+      bnb_4bit_compute_dtype=torch.bfloat16, bnb_4bit_use_double_quant=True)</span></p>
+      <p>This tells HuggingFace: when loading weights, quantize them to 4-bit NF4 on the fly.
+      The model lands on the GPU already compressed. <code>compute_dtype=bfloat16</code> means
+      matrix multiplications happen in bf16 for speed/accuracy, even though storage is 4-bit.</p>
+
+      <h4>Step 2: Freeze</h4>
+      <p>The 4-bit weights are automatically frozen — bitsandbytes marks them as non-trainable.
+      You can optionally call <code>prepare_model_for_kbit_training(model)</code> which also
+      enables gradient checkpointing and fixes layer norms to fp32 for stability.</p>
+
+      <h4>Step 3: Attach LoRA</h4>
+      <p><span class="formula">LoraConfig(r=8, lora_alpha=16, target_modules="all-linear",
+      lora_dropout=0.05)</span></p>
+      <p><code>get_peft_model(model, config)</code> wraps each targeted layer with a LoRA adapter.
+      Now <code>model.print_trainable_parameters()</code> shows ~0.5% trainable.</p>
+
+      <h4>Step 4: Train</h4>
+      <p><code>SFTTrainer</code> from <code>trl</code> handles tokenization, batching, and the
+      training loop. Only the LoRA params get gradients and optimizer state.</p>
+
+      <h4>Step 5: Save / Merge</h4>
+      <p><code>model.save_pretrained("my-adapter")</code> saves just the adapter (~10-50 MB).
+      <code>model.merge_and_unload()</code> folds it back into the base for deployment.</p>
+
+      <h4>How it connects to the capstone</h4>
+      <p>Each data update in the self-driving scenario becomes a new adapter: cheap to train, cheap
+      to store, cheap to swap. You can keep one adapter per data batch and load whichever you need —
+      the starting point for fighting catastrophic forgetting in Case 05.</p>
+    </div></details>
+  </div>
+</div>
+
+<script>
+const dpr = devicePixelRatio || 1;
+function fit(c){ const r = c.getBoundingClientRect(); c.width = r.width*dpr; c.height = c.height*dpr; }
+
+// ---- PANEL 1: Quantization visualizer ----
+const qc = document.getElementById('quant'), qx = qc.getContext('2d');
+fit(qc);
+
+// generate 24 fake weights ~ N(0, 0.4)
+function seeded(){let s=42;return()=>{s=(s*1103515245+12345)&0x7fffffff;return(s/0x7fffffff)*2-1;}}
+const rng = seeded();
+const weights = Array.from({length:24}, () => rng()*0.7);
+
+function quantize(val, bits){
+  const levels = Math.pow(2, bits);
+  const step = 2.0 / levels;
+  return Math.round(val / step) * step;
+}
+
+function drawQuant(){
+  const bits = +document.getElementById('bits').value;
+  document.getElementById('bitsv').textContent = bits + '-bit';
+  const W = qc.width, H = qc.height;
+  qx.clearRect(0, 0, W, H);
+
+  const n = weights.length;
+  const pad = 20*dpr, barW = (W - pad*2) / (n*2.5);
+  const maxAbs = 0.8;
+  let totalErr = 0;
+
+  for(let i = 0; i < n; i++){
+    const x = pad + i * barW * 2.5;
+    const v = weights[i];
+    const q = bits >= 16 ? v : quantize(v, bits);
+    totalErr += (v - q) ** 2;
+
+    const h1 = (v / maxAbs) * (H/2 - pad);
+    const h2 = (q / maxAbs) * (H/2 - pad);
+    const mid = H/2;
+
+    // true value (orange)
+    qx.fillStyle = '#ff8a5c';
+    if(h1 >= 0){
+      qx.fillRect(x, mid - h1, barW*0.9, h1);
+    } else {
+      qx.fillRect(x, mid, barW*0.9, -h1);
+    }
+
+    // quantized value (green)
+    qx.fillStyle = '#6ee7a8';
+    const xq = x + barW;
+    if(h2 >= 0){
+      qx.fillRect(xq, mid - h2, barW*0.9, h2);
+    } else {
+      qx.fillRect(xq, mid, barW*0.9, -h2);
+    }
+  }
+
+  // zero line
+  qx.strokeStyle = '#3a4a66';
+  qx.lineWidth = 1*dpr;
+  qx.beginPath();
+  qx.moveTo(pad, H/2);
+  qx.lineTo(W - pad, H/2);
+  qx.stroke();
+
+  // labels
+  qx.fillStyle = '#9aa3b2';
+  qx.font = `${11*dpr}px sans-serif`;
+  qx.fillText('fp16 (true)', pad, 14*dpr);
+  qx.fillStyle = '#6ee7a8';
+  qx.fillText(bits + '-bit (quantized)', pad + 100*dpr, 14*dpr);
+
+  const mse = Math.sqrt(totalErr / n);
+  const sizeGB = 8; // assume 8B model
+  const ratio = 16 / bits;
+  const newGB = (sizeGB * 2 / ratio).toFixed(1);
+  document.getElementById('qerr').textContent = (mse * 100).toFixed(2) + '%';
+  document.getElementById('qstat').innerHTML =
+    `fp16 → <b class="g">${bits}-bit</b>: 8B model shrinks from <b>16 GB</b> to <b class="g">~${newGB} GB</b>. `+
+    `Levels: <b>${Math.pow(2,bits).toLocaleString()}</b>. Quantization error: <b>${(mse*100).toFixed(2)}%</b>`;
+}
+document.getElementById('bits').oninput = drawQuant;
+drawQuant();
+
+// ---- PANEL 2: VRAM budget bars ----
+function drawBars(){
+  const B = +document.getElementById('msize').value;
+  document.getElementById('msv').textContent = B + 'B';
+
+  const bytesPerParam_fp16 = 2;
+  const bytesPerParam_4bit = 0.5;
+  const optBytes = 8; // Adam: 2 fp32 per trainable param
+  const gradBytes = 2;
+  const loraFrac = 0.005;
+  const activGB = 1.5;
+
+  // Full fine-tune (fp16)
+  const full_w = B * bytesPerParam_fp16;
+  const full_opt = B * optBytes;
+  const full_grad = B * gradBytes;
+  const full_act = activGB;
+
+  // LoRA fp16 (freeze base, train ~0.5%)
+  const lora_w = B * bytesPerParam_fp16;
+  const lora_opt = B * loraFrac * optBytes;
+  const lora_grad = B * loraFrac * gradBytes;
+  const lora_act = activGB;
+
+  // QLoRA (4-bit base + LoRA)
+  const qlora_w = B * bytesPerParam_4bit;
+  const qlora_opt = B * loraFrac * optBytes;
+  const qlora_grad = B * loraFrac * gradBytes;
+  const qlora_act = activGB;
+
+  const configs = [
+    { name:'Full FT (fp16)', w:full_w, o:full_opt, g:full_grad, a:full_act },
+    { name:'LoRA (fp16)', w:lora_w, o:lora_opt, g:lora_grad, a:lora_act },
+    { name:'QLoRA (4-bit)', w:qlora_w, o:qlora_opt, g:qlora_grad, a:qlora_act },
+  ];
+
+  const maxGB = Math.max(...configs.map(c => c.w + c.o + c.g + c.a));
+  const barH = 180;
+  const t4line = 16;
+  const colors = {w:'#6b7689', o:'#ff8a5c', g:'#5cc8ff', a:'#9f7aea'};
+
+  let html = '';
+  configs.forEach(c => {
+    const total = c.w + c.o + c.g + c.a;
+    const scale = barH / Math.max(maxGB, t4line * 1.1);
+    const segs = [
+      {h: c.w * scale, bg: colors.w},
+      {h: c.o * scale, bg: colors.o},
+      {h: c.g * scale, bg: colors.g},
+      {h: c.a * scale, bg: colors.a},
+    ];
+    html += `<div class="bar-col">
+      <div class="bar-total" style="color:${total>t4line?'#ef4444':'#6ee7a8'}">${total.toFixed(1)} GB</div>
+      <div class="bar-stack" style="height:${barH}px;position:relative">
+        ${segs.map(s => `<div class="bar-seg" style="height:${s.h}px;background:${s.bg}"></div>`).join('')}
+        <div style="position:absolute;left:0;right:0;bottom:${t4line*scale}px;border-top:2px dashed #fbbf24;opacity:0.7"></div>
+      </div>
+      <div class="bar-label">${c.name}</div>
+    </div>`;
+  });
+  document.getElementById('bars').innerHTML = html;
+
+  const q = configs[2];
+  document.getElementById('vstat').innerHTML =
+    `At <b>${B}B</b> params: Full FT needs <b class="k">${(configs[0].w+configs[0].o+configs[0].g+configs[0].a).toFixed(0)} GB</b> — `+
+    `QLoRA needs only <b class="g">${(q.w+q.o+q.g+q.a).toFixed(1)} GB</b>. `+
+    `T4 limit: 16 GB.`;
+}
+document.getElementById('msize').oninput = drawBars;
+drawBars();
+
+// ---- PANEL 3: Pipeline flow ----
+const pc = document.getElementById('pipe'), px = pc.getContext('2d');
+fit(pc);
+
+const steps = [
+  {label:'Load\n4-bit', color:'#5cc8ff', icon:'4'},
+  {label:'Freeze\nbase', color:'#6b7689', icon:'*'},
+  {label:'Attach\nLoRA', color:'#6ee7a8', icon:'+'},
+  {label:'Train\n(SFT)', color:'#ff8a5c', icon:'>'},
+  {label:'Save /\nMerge', color:'#9f7aea', icon:'='},
+];
+
+let pt = 0;
+function drawPipe(){
+  const W = pc.width, H = pc.height;
+  px.clearRect(0, 0, W, H);
+  const n = steps.length;
+  const bw = Math.min(90*dpr, (W - 40*dpr) / n - 16*dpr);
+  const bh = 56*dpr;
+  const gap = (W - 30*dpr - n*bw) / (n-1);
+  const cy = H/2;
+
+  steps.forEach((s, i) => {
+    const x = 15*dpr + i * (bw + gap);
+    const y = cy - bh/2;
+
+    // box
+    px.fillStyle = s.color;
+    px.globalAlpha = 0.15;
+    px.beginPath();
+    px.roundRect(x, y, bw, bh, 8*dpr);
+    px.fill();
+    px.globalAlpha = 1;
+    px.strokeStyle = s.color;
+    px.lineWidth = 1.5*dpr;
+    px.beginPath();
+    px.roundRect(x, y, bw, bh, 8*dpr);
+    px.stroke();
+
+    // label
+    px.fillStyle = '#e7e9ee';
+    px.font = `${11*dpr}px sans-serif`;
+    px.textAlign = 'center';
+    const lines = s.label.split('\n');
+    lines.forEach((ln, li) => {
+      px.fillText(ln, x + bw/2, cy + (li - (lines.length-1)/2) * 14*dpr + 4*dpr);
+    });
+
+    // arrow to next
+    if(i < n-1){
+      const ax1 = x + bw + 4*dpr;
+      const ax2 = x + bw + gap - 4*dpr;
+      px.strokeStyle = '#3a4a66';
+      px.lineWidth = 2*dpr;
+      px.beginPath();
+      px.moveTo(ax1, cy);
+      px.lineTo(ax2, cy);
+      px.stroke();
+      // arrowhead
+      px.fillStyle = '#3a4a66';
+      px.beginPath();
+      px.moveTo(ax2, cy);
+      px.lineTo(ax2 - 6*dpr, cy - 4*dpr);
+      px.lineTo(ax2 - 6*dpr, cy + 4*dpr);
+      px.closePath();
+      px.fill();
+
+      // flowing dot
+      const p = ((pt + i*20) % 100) / 100;
+      px.fillStyle = s.color;
+      px.beginPath();
+      px.arc(ax1 + (ax2 - ax1)*p, cy, 3*dpr, 0, 7);
+      px.fill();
+    }
+  });
+
+  // highlight current step
+  const ci = Math.floor((pt % 500) / 100);
+  if(ci < n){
+    const x = 15*dpr + ci * (bw + gap);
+    px.strokeStyle = steps[ci].color;
+    px.lineWidth = 2.5*dpr;
+    px.globalAlpha = 0.5 + 0.3 * Math.sin(pt * 0.1);
+    px.beginPath();
+    px.roundRect(x - 2*dpr, cy - bh/2 - 2*dpr, bw + 4*dpr, bh + 4*dpr, 10*dpr);
+    px.stroke();
+    px.globalAlpha = 1;
+  }
+
+  px.textAlign = 'left';
+  pt++;
+}
+setInterval(drawPipe, 40);
+
+window.addEventListener('resize', () => location.reload());
+</script>
+
+<!-- AI tutor: ask questions about this page. Bring your own API key (Claude or OpenAI). -->
+<script>
+window.TUTOR_CONFIG = {
+  caseTitle: "Case 03 · QLoRA on a real LLM",
+  context: "Interactive page on QLoRA (Quantized Low-Rank Adaptation). Panel 1: quantization "
+    + "visualizer showing fp16 weights vs quantized weights at different bit widths (2/4/8/16). "
+    + "Shows how fewer bits = fewer levels = more rounding error but much less memory. NF4 is the "
+    + "4-bit format QLoRA uses. Panel 2: VRAM budget comparison for Full FT vs LoRA (fp16) vs QLoRA "
+    + "(4-bit) showing where memory goes (weights, optimizer, gradients, activations) with a model "
+    + "size slider. Yellow line = free Colab T4 16GB limit. Panel 3: animated QLoRA pipeline: "
+    + "Load 4-bit -> Freeze base -> Attach LoRA -> Train (SFT) -> Save/Merge. Maps to "
+    + "BitsAndBytesConfig, get_peft_model, SFTTrainer, merge_and_unload in HuggingFace code.",
+  suggestions: [
+    "Why does 4-bit quantization barely hurt model quality?",
+    "How much VRAM do I actually need for QLoRA on Llama-3-8B?",
+    "What's the difference between saving an adapter vs merging?"
+  ]
+};
+</script>
+<script src="../assets/tutor.js"></script>
+</body>
+</html>
