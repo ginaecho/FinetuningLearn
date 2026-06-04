@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case 07 · Capstone: Streaming Self-Driving Updates — Animated</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<header>
+  <h1>Case 07 · Capstone: Streaming Self-Driving Updates</h1>
+  <div class="sub">Cost vs accuracy vs forgetting: build the hybrid memory system that beats them all.</div>
+</header>
+
+<div class="wrap">
+
+  <!-- Panel 1: hybrid architecture flow diagram -->
+  <div class="panel full">
+    <h2>1 · The hybrid architecture — how production systems actually work</h2>
+    <canvas id="hybrid" height="260"></canvas>
+    <div class="note">
+      <b>Real-time path (cheap):</b> every new experience goes into the vector DB and can be retrieved immediately.
+      <b>Slow path (consolidation):</b> periodically, a replay batch from the DB updates the LoRA, turning recurring patterns into compressed weights.
+    </div>
+    <details class="theory"><summary>📖 Why a hybrid beats pure replay or pure retrieval?</summary>
+    <div class="tbody">
+      <h4>The three layers</h4>
+      <ul>
+        <li><b class="term">Foundation model</b> — frozen general knowledge (language, physics, road rules).</li>
+        <li><b class="term">Stable LoRA</b> — core driving skills learned via periodic replay. Updated monthly/quarterly. Fast at inference.</li>
+        <li><b class="term">Experience memory</b> — vector DB of raw episodes. Updated in real time. Retrieved for rare or novel situations.</li>
+      </ul>
+      <h4>Why not just retrieval?</h4>
+      <p>Retrieval has no generalization. If the DB is down, the knowledge is gone. And you can't fit 100M experiences into a context window.</p>
+      <h4>Why not just replay?</h4>
+      <p>Retraining is expensive and slow. You don't want to re-certify a safety-critical model every day.</p>
+      <h4>The balance</h4>
+      <p>Retrieval handles <b>day-to-day surprises</b> (construction zone, local quirks). Replay <b>consolidates</b> recurring patterns into weights quarterly.
+      This mirrors human cognition: hippocampus (fast, episodic) → cortex (slow, generalized).</p>
+    </div></details>
+  </div>
+
+  <!-- Panel 2: replay vs retrieval interactive table -->
+  <div class="panel">
+    <h2>2 · Replay vs Retrieval — click to compare</h2>
+    <canvas id="compare" height="280"></canvas>
+    <div class="row">
+      <button id="btnReplay" onclick="setMode('replay')">Show Replay</button>
+      <button id="btnRetrieval" onclick="setMode('retrieval')" class="ghost">Show Retrieval</button>
+    </div>
+    <div class="note" id="compareNote">
+      <b>Replay</b> acts during <b>training</b>. It changes weights. High GPU cost, low inference cost, strong generalization.
+    </div>
+    <details class="theory"><summary>📖 When do they act, and what does each cost?</summary>
+    <div class="tbody">
+      <h4>The critical distinction</h4>
+      <p>These solve <b>different problems</b>. Asking which is "better" is like asking whether a database is better than training data.</p>
+      <table style="width:100%;font-size:12.5px;border-collapse:collapse;margin-top:6px">
+        <tr style="border-bottom:1px solid #283044"><th style="text-align:left;padding:4px 0">Aspect</th><th style="text-align:left;padding:4px 0;color:#6ee7a8">Replay</th><th style="text-align:left;padding:4px 0;color:#5cc8ff">Retrieval</th></tr>
+        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">When it acts</td><td>During training</td><td>During inference</td></tr>
+        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Weights change?</td><td>Yes</td><td>No</td></tr>
+        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">GPU cost</td><td>High</td><td>Low</td></tr>
+        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Storage cost</td><td>Medium</td><td>High</td></tr>
+        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Inference cost</td><td>Low</td><td>Medium</td></tr>
+        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Catastrophic forgetting</td><td>Low (with buffer)</td><td>None</td></tr>
+        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Knowledge updates</td><td>Slow (need retrain)</td><td>Immediate</td></tr>
+        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Recall of rare events</td><td>Poor</td><td>Excellent</td></tr>
+        <tr><td style="padding:3px 0">Generalization</td><td>Strong</td><td>Weak</td></tr>
+      </table>
+      <h4>Analogy</h4>
+      <p><b>Replay = studying:</b> a student practices hundreds of problems until concepts become automatic.
+      They no longer need the textbook.</p>
+      <p><b>Retrieval = open-book exam:</b> the student looks up relevant examples during the test.
+      If the book is gone, the knowledge is gone.</p>
+    </div></details>
+  </div>
+
+  <!-- Panel 3: trade-off space -->
+  <div class="panel">
+    <h2>3 · The trade-off space — cost vs accuracy</h2>
+    <canvas id="tradeoff" height="280"></canvas>
+    <div class="row">
+      <label>replay frequency</label>
+      <input id="freq" type="range" min="0" max="100" step="10" value="50">
+      <span class="val" id="freqVal">medium</span>
+    </div>
+    <div class="note">
+      Drag <b>replay frequency</b> to move the hybrid dot. More replay = higher accuracy, higher cost.
+      The <b class="g">hybrid</b> (green) beats pure approaches by combining cheap retrieval with periodic consolidation.
+    </div>
+    <details class="theory"><summary>📖 How do I balance cost, accuracy, and forgetting?</summary>
+    <div class="tbody">
+      <h4>The three axes</h4>
+      <ul>
+        <li><b class="term">Cost</b> — GPU hours spent on retraining. Naive is cheap per step but needs many steps. Retrieval is free.</li>
+        <li><b class="term">Accuracy</b> — average performance across all tasks seen so far.</li>
+        <li><b class="term">Forgetting</b> — how much old-task performance dropped. Retrieval has zero forgetting; naive has lots.</li>
+      </ul>
+      <h4>What does the <span class="btnref">replay frequency</span> slider do?</h4>
+      <p>In the hybrid system, you choose how often to run consolidation:</p>
+      <ul>
+        <li>Low frequency (rare replay) → cheap, but weights lag behind new patterns. Accuracy suffers.</li>
+        <li>High frequency (frequent replay) → accurate, but GPU bill rises.</li>
+        <li>The sweet spot depends on your data velocity and budget. Automotive systems often choose <b>quarterly</b>.</li>
+      </ul>
+      <h4>Why the hybrid wins</h4>
+      <p>Retrieval gives you <b>immediate</b> access to every experience (no forgetting, fast updates).
+      Periodic replay <b>compresses</b> recurring experiences into weights (generalization, no retrieval latency).
+      Together they cover both fast-changing specifics and stable core skills.</p>
+    </div></details>
+  </div>
+
+</div>
+
+<script>
+const dpr = devicePixelRatio || 1;
+function fit(c){ const r=c.getBoundingClientRect(); c.width=r.width*dpr; c.height=c.height*dpr; }
+
+// ---- Panel 1: hybrid architecture diagram ----
+const hyb = document.getElementById('hybrid'), hctx = hyb.getContext('2d'); fit(hyb);
+const WH = hyb.width, HH = hyb.height;
+let t = 0;
+function drawHybrid(){
+  hctx.clearRect(0,0,WH,HH);
+  const pad=20*dpr;
+  // boxes
+  function box(x,y,w,h,col,txt,sub){
+    hctx.fillStyle=col; hctx.globalAlpha=0.18; hctx.fillRect(x,y,w,h); hctx.globalAlpha=1;
+    hctx.strokeStyle=col; hctx.lineWidth=1.5*dpr; hctx.strokeRect(x,y,w,h);
+    hctx.fillStyle='#e7e9ee'; hctx.font=`${12*dpr}px sans-serif`; hctx.textAlign='center';
+    hctx.fillText(txt, x+w/2, y+h/2-2*dpr);
+    if(sub){ hctx.fillStyle='#9aa3b2'; hctx.font=`${10*dpr}px sans-serif`; hctx.fillText(sub, x+w/2, y+h/2+10*dpr); }
+  }
+  const bw=(WH-4*pad)/4, bh=50*dpr, y0=HH/2-bh/2;
+  // experiences
+  box(pad, y0-60*dpr, bw, bh, '#ff8a5c', 'Raw Experiences', 'real-time stream');
+  // memory
+  box(pad+bw+pad, y0-60*dpr, bw, bh, '#5cc8ff', 'Vector DB', 'experience memory');
+  // retrieval path
+  box(pad+2*(bw+pad), y0, bw, bh, '#6ee7a8', 'Retrieval', 'at inference');
+  // replay path
+  box(pad+bw+pad, y0+60*dpr, bw, bh, '#fbbf24', 'Periodic Replay', 'quarterly');
+  // LoRA
+  box(pad+2*(bw+pad), y0+60*dpr, bw, bh, '#fbbf24', 'LoRA Update', 'consolidation');
+  // model
+  box(pad+3*(bw+pad), y0, bw, bh, '#9aa3b2', 'Foundation + LoRA', 'inference');
+
+  // animated dots
+  const p = (t%120)/120;
+  function dot(x1,y1,x2,y2,ph,col){
+    const k=(p+ph)%1;
+    const x=x1+(x2-x1)*k, y=y1+(y2-y1)*k;
+    hctx.fillStyle=col; hctx.beginPath(); hctx.arc(x,y,3*dpr,0,7); hctx.fill();
+  }
+  // exp -> db
+  dot(pad+bw, y0-60*dpr+bh/2, pad+bw+pad, y0-60*dpr+bh/2, 0, '#ff8a5c');
+  // db -> retrieval
+  dot(pad+2*bw+pad, y0-60*dpr+bh/2, pad+2*(bw+pad)+bw/2, y0, 0.2, '#5cc8ff');
+  // db -> replay
+  dot(pad+2*bw+pad, y0-60*dpr+bh/2, pad+bw+pad+bw/2, y0+60*dpr, 0.4, '#5cc8ff');
+  // replay -> LoRA
+  dot(pad+bw+pad+bw, y0+60*dpr+bh/2, pad+2*(bw+pad)+bw/2, y0+60*dpr, 0.6, '#fbbf24');
+  // LoRA -> model
+  dot(pad+2*(bw+pad)+bw, y0+60*dpr+bh/2, pad+3*(bw+pad), y0+bh/2, 0.8, '#fbbf24');
+  // retrieval -> model
+  dot(pad+2*(bw+pad)+bw, y0+bh/2, pad+3*(bw+pad), y0+bh/2, 0.5, '#6ee7a8');
+
+  t++;
+  requestAnimationFrame(drawHybrid);
+}
+drawHybrid();
+
+// ---- Panel 2: replay vs retrieval comparison ----
+const cmp = document.getElementById('compare'), cctx = cmp.getContext('2d'); fit(cmp);
+const WC = cmp.width, HC = cmp.height;
+let cmpMode = 'replay';
+function setMode(m){ cmpMode=m;
+  document.getElementById('btnReplay').classList.toggle('ghost', m!=='replay');
+  document.getElementById('btnRetrieval').classList.toggle('ghost', m!=='retrieval');
+  document.getElementById('compareNote').innerHTML = m==='replay'
+    ? '<b>Replay</b> acts during <b>training</b>. It changes weights. High GPU cost, low inference cost, strong generalization.'
+    : '<b>Retrieval</b> acts during <b>inference</b>. Weights stay frozen. Zero training cost, medium inference cost, excellent recall of rare events.';
+  drawCompare();
+}
+function drawCompare(){
+  cctx.clearRect(0,0,WC,HC);
+  const pad=20*dpr;
+  const cw=(WC-2*pad)/2, ch=HC-60*dpr;
+  // left: replay
+  cctx.fillStyle='#0e1118'; cctx.strokeStyle=cmpMode==='replay'?'#6ee7a8':'#283044'; cctx.lineWidth=cmpMode==='replay'?2:1;
+  cctx.fillRect(pad, 40*dpr, cw, ch); cctx.strokeRect(pad, 40*dpr, cw, ch);
+  cctx.fillStyle=cmpMode==='replay'?'#6ee7a8':'#6b7689'; cctx.font=`${13*dpr}px sans-serif`; cctx.textAlign='center';
+  cctx.fillText('REPLAY', pad+cw/2, 30*dpr);
+  // right: retrieval
+  cctx.fillStyle='#0e1118'; cctx.strokeStyle=cmpMode==='retrieval'?'#5cc8ff':'#283044'; cctx.lineWidth=cmpMode==='retrieval'?2:1;
+  cctx.fillRect(pad+cw+10*dpr, 40*dpr, cw, ch); cctx.strokeRect(pad+cw+10*dpr, 40*dpr, cw, ch);
+  cctx.fillStyle=cmpMode==='retrieval'?'#5cc8ff':'#6b7689';
+  cctx.fillText('RETRIEVAL', pad+cw+10*dpr+cw/2, 30*dpr);
+  // content
+  const attrs = [
+    ['When','During training','During inference'],
+    ['Weights change','Yes','No'],
+    ['GPU cost','High','Low'],
+    ['Inference cost','Low','Medium'],
+    ['Forgetting','Low (with buffer)','None'],
+    ['Updates','Slow','Immediate'],
+    ['Rare events','Poor recall','Excellent'],
+    ['Generalization','Strong','Weak'],
+  ];
+  cctx.font=`${11*dpr}px sans-serif`; cctx.textAlign='left';
+  attrs.forEach((row,i)=>{
+    const y=55*dpr+i*22*dpr;
+    cctx.fillStyle='#9aa3b2'; cctx.fillText(row[0], pad+8*dpr, y);
+    cctx.fillStyle=cmpMode==='replay'?'#e7e9ee':'#6b7689'; cctx.fillText(row[1], pad+8*dpr, y+12*dpr);
+    cctx.fillStyle=cmpMode==='retrieval'?'#e7e9ee':'#6b7689'; cctx.fillText(row[2], pad+cw+18*dpr, y+12*dpr);
+  });
+}
+drawCompare();
+
+// ---- Panel 3: trade-off space ----
+const to = document.getElementById('tradeoff'), tctx = to.getContext('2d'); fit(to);
+const WT = to.width, HT = to.height;
+function drawTradeoff(){
+  const freq = +document.getElementById('freq').value;
+  const label = freq<30?'low':freq<70?'medium':'high';
+  document.getElementById('freqVal').textContent = label;
+  tctx.clearRect(0,0,WT,HT);
+  const pad=36*dpr, bw=WT-2*pad, bh=HT-2*pad;
+  // axes
+  tctx.strokeStyle='#283044'; tctx.lineWidth=1*dpr;
+  tctx.beginPath(); tctx.moveTo(pad, pad); tctx.lineTo(pad, HT-pad); tctx.lineTo(WT-pad, HT-pad); tctx.stroke();
+  tctx.fillStyle='#9aa3b2'; tctx.font=`${11*dpr}px sans-serif`; tctx.textAlign='center';
+  tctx.fillText('cost (training steps + memory size)', WT/2, HT-6*dpr);
+  tctx.save(); tctx.translate(12*dpr, HT/2); tctx.rotate(-Math.PI/2); tctx.fillText('accuracy (lower avg loss)', 0, 0); tctx.restore();
+  // fixed points
+  const points = [
+    {name:'Naive', x:0.15, y:0.75, col:'#ff5c5c'},
+    {name:'Retrieval-only', x:0.05, y:0.55, col:'#5cc8ff'},
+    {name:'Replay-only', x:0.9, y:0.25, col:'#fbbf24'},
+  ];
+  // hybrid point moves with frequency
+  // freq 0 -> near retrieval, freq 100 -> near replay
+  const hyX = 0.1 + freq/100 * 0.7;
+  const hyY = 0.5 - freq/100 * 0.3;
+  points.push({name:'Hybrid', x:hyX, y:hyY, col:'#6ee7a8'});
+  // draw points
+  points.forEach(p=>{
+    const x=pad+bw*p.x, y=pad+bh*p.y;
+    tctx.fillStyle=p.col; tctx.beginPath(); tctx.arc(x,y,5*dpr,0,7); tctx.fill();
+    tctx.fillStyle=p.col; tctx.font=`${11*dpr}px sans-serif`; tctx.textAlign='left';
+    tctx.fillText(p.name, x+8*dpr, y+4*dpr);
+  });
+  // ideal zone
+  tctx.strokeStyle='#2f6b4a'; tctx.setLineDash([3*dpr,3*dpr]); tctx.lineWidth=1*dpr;
+  tctx.strokeRect(pad+bw*0.1, pad+bh*0.1, bw*0.5, bh*0.35); tctx.setLineDash([]);
+  tctx.fillStyle='#2f6b4a'; tctx.font=`${10*dpr}px sans-serif`; tctx.textAlign='left';
+  tctx.fillText('sweet spot', pad+bw*0.12, pad+bh*0.14);
+}
+document.getElementById('freq').oninput = drawTradeoff;
+drawTradeoff();
+
+window.addEventListener('resize', ()=>location.reload());
+</script>
+
+<script>
+window.TUTOR_CONFIG = {
+  caseTitle: "Case 07 · Capstone: Streaming Self-Driving Updates",
+  context: "Interactive capstone on hybrid memory architectures for continual learning. Panel 1: animated flow diagram of a production hybrid system — raw experiences go to a vector DB, which feeds both real-time retrieval and periodic replay-based LoRA consolidation. Panel 2: side-by-side comparison of replay vs retrieval on when they act, cost, and forgetting. Panel 3: cost-accuracy trade-off scatter plot where the hybrid system's position moves with replay frequency. Core concepts: hybrid architecture, memory hierarchy, consolidation, production trade-offs, and the neuroscience-inspired pipeline (hippocampus-like retrieval → cortex-like weights).",
+  suggestions: [
+    "Why not use retrieval for everything?",
+    "How often should I run consolidation replay in production?",
+    "What goes into the vector DB vs what gets compressed into weights?"
+  ]
+};
+</script>
+<script src="../assets/tutor.js"></script>
+</body>
+</html>

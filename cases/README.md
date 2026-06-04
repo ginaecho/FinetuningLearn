@@ -9,15 +9,15 @@ Work through these in order — each builds on the last and they all lead to the
 | 02 | [`02_lora_from_scratch`](./02_lora_from_scratch/) | Implement LoRA yourself; match full tuning at ~1% cost | ✅ |
 | 03 | [`03_qlora_real_llm`](./03_qlora_real_llm/) | QLoRA on a real LLM via `peft` + 4-bit (Colab-first) | ✅ |
 | 04 | `04_instruction_sft` | Instruction/SFT tuning + real evaluation | 🔜 |
-| 05 | `05_catastrophic_forgetting` | Make forgetting happen and **measure** it | 🔜 |
-| 06 | `06_continual_learning` | Replay · EWC · per-task adapters · distillation | 🔜 |
-| 07 | `07_capstone_autocar` | Streaming self-driving updates: cost vs accuracy vs forgetting | 🔜 |
+| 05 | [`05_catastrophic_forgetting`](./05_catastrophic_forgetting/) | Make forgetting happen and **measure** it | ✅ |
+| 06 | [`06_continual_learning`](./06_continual_learning/) | Replay · EWC · per-task adapters · distillation | ✅ |
+| 07 | [`07_capstone_autocar`](./07_capstone_autocar/) | Streaming self-driving updates: cost vs accuracy vs forgetting | ✅ |
 
 Each folder: `README.md` (start here) · `animation.html` (intuition) · `*.ipynb` (code) · `challenge.md` (your turn).
 
 From Case 03 onward, notebooks are **Colab-first** — open in Google Colab (free T4 GPU) and run. Each has a setup cell that installs everything.
 
-Built so far: **00, 01, 02, and 03**. Finish their challenges, then say the word and I'll build the next case.
+Built so far: **00–03 and 05–07**. (Case 04 is the next gap to fill.)
 
 ---
 

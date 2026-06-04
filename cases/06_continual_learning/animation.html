@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case 06 · Continual Learning Toolkit — Animated</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<header>
+  <h1>Case 06 · Continual Learning Toolkit</h1>
+  <div class="sub">Four ways to stop forgetting: replay, regularization, and modular adapters.</div>
+</header>
+
+<div class="wrap">
+
+  <!-- Panel 1: replay buffer composition -->
+  <div class="panel">
+    <h2>1 · Replay buffer — mix old data into new training</h2>
+    <canvas id="replay" height="240"></canvas>
+    <div class="row">
+      <label>replay ratio (old data %)</label>
+      <input id="ratio" type="range" min="0" max="50" step="5" value="15">
+      <span class="val" id="ratioVal">15%</span>
+    </div>
+    <div class="note">
+      Each square is one training sample in a mini-batch.
+      <b class="g">Green</b> = new Task-B data. <b class="k">Gray</b> = replayed Task-A data.
+      Even a small replay ratio keeps the optimizer anchored to old knowledge.
+    </div>
+    <details class="theory"><summary>📖 How does replay prevent forgetting?</summary>
+    <div class="tbody">
+      <h4>The idea</h4>
+      <p>Instead of training <b>only</b> on new data, you mix in a small fraction of representative old samples.
+      The optimizer must find parameters that work for <b>both</b> distributions simultaneously.</p>
+      <h4>What does the <span class="btnref">slider</span> show?</h4>
+      <ul>
+        <li>0% replay = pure new-task training → maximum forgetting.</li>
+        <li>15–30% replay = strong protection with little slowdown (the sweet spot in most papers).</li>
+        <li>50%+ replay = very safe but you learn the new task slower (old data dominates).</li>
+      </ul>
+      <h4>Why it works</h4>
+      <p>The loss landscape for Task A and Task B usually overlap. By showing both tasks, the optimizer settles
+      in a <b>shared valley</b> instead of jumping from one basin to another.</p>
+      <h4>Production note</h4>
+      <p>Replay remains the <b>strongest baseline</b> in continual learning research. Many fancy methods lose to
+      a well-designed replay buffer (see tutorial §2 and §9).</p>
+    </div></details>
+  </div>
+
+  <!-- Panel 2: EWC spring -->
+  <div class="panel">
+    <h2>2 · EWC — protect important weights with a penalty</h2>
+    <canvas id="ewc" height="240"></canvas>
+    <div class="row">
+      <label>λ (penalty strength)</label>
+      <input id="lam" type="range" min="0" max="2000" step="100" value="1000">
+      <span class="val" id="lamVal">1000</span>
+      <button id="toggleEwc" class="ghost">EWC: ON</button>
+    </div>
+    <div class="note">
+      A single weight's journey: old optimum at <b>0.4</b>, new training pulls it toward <b>0.9</b>.
+      With EWC (toggle), a <b>spring</b> pulls back proportional to how <i>important</i> this weight was for Task A.
+    </div>
+    <details class="theory"><summary>📖 What is EWC and the Fisher information?</summary>
+    <div class="tbody">
+      <h4>Elastic Weight Consolidation (EWC)</h4>
+      <p>After training on Task A, EWC estimates which parameters matter most for A (using <b class="term">Fisher information</b>).
+      When training on B, it adds a penalty for changing those important parameters:</p>
+      <p style="text-align:center"><span class="formula">Loss = Loss_B + (λ/2) · Σ F_i · (θ_i − θ*_i)²</span></p>
+      <p>Where <span class="formula">F_i</span> is Fisher importance and <span class="formula">θ*_i</span> is the old optimal value.</p>
+      <h4>What does the <span class="btnref">λ slider</span> control?</h4>
+      <ul>
+        <li>λ = 0 → no penalty → pure B training → forget A.</li>
+        <li>λ = 1000 → strong spring → weight stays near old optimum → A protected, but B learns slower.</li>
+        <li>Too high λ → the model can't learn B at all (frozen).</li>
+      </ul>
+      <h4>Limitation</h4>
+      <p>EWC protects A but doesn't <i>teach</i> B as well as replay does, because it constrains the parameter space.
+      That's why replay usually wins.</p>
+    </div></details>
+  </div>
+
+  <!-- Panel 3: adapter library -->
+  <div class="panel full">
+    <h2>3 · Adapter library — one LoRA per task, zero interference</h2>
+    <canvas id="adapters" height="200"></canvas>
+    <div class="row">
+      <label>active task</label>
+      <button class="ghost" onclick="setTask(0)">Task A</button>
+      <button class="ghost" onclick="setTask(1)">Task B</button>
+      <button class="ghost" onclick="setTask(2)">Task C</button>
+    </div>
+    <div class="note">
+      Each task gets its own small adapter (green). The base model (gray) stays frozen forever.
+      At inference, load the right adapter. <b>No forgetting</b> — but you need a task detector or router.
+    </div>
+    <details class="theory"><summary>📖 How do per-task adapters eliminate forgetting?</summary>
+    <div class="tbody">
+      <h4>The architecture</h4>
+      <p>Instead of training one adapter on A, then overwriting it on B, you <b>save</b> adapter A to disk,
+      train a fresh adapter B, save it, train C, save it. Each adapter is a tiny file (~tens of KB for small r).</p>
+      <h4>Inference</h4>
+      <p>Load the base model + the adapter for the task at hand. If you don't know the task, you need a
+      <b class="term">router</b> (learned or heuristic) that picks the adapter.</p>
+      <h4>Trade-offs</h4>
+      <ul>
+        <li><b>Pros:</b> Zero forgetting. Each adapter is independent. Cheap to store many.</li>
+        <li><b>Cons:</b> Need task ID at test time. No cross-task generalization within a single adapter.</li>
+        <li><b>Scale:</b> Thousands of adapters can be served concurrently (see MLSys 2024 paper in tutorial).</li>
+      </ul>
+      <h4>Connection to capstone</h4>
+      <p>In a self-driving car, you might keep adapters for "highway", "urban", "construction zone".
+      The common "core driving" knowledge lives in the frozen base; situation-specific corrections live in adapters.</p>
+    </div></details>
+  </div>
+
+</div>
+
+<script>
+const dpr = devicePixelRatio || 1;
+function fit(c){ const r=c.getBoundingClientRect(); c.width=r.width*dpr; c.height=c.height*dpr; }
+
+// ---- Panel 1: replay buffer grid ----
+const rep = document.getElementById('replay'), rctx = rep.getContext('2d'); fit(rep);
+const WR = rep.width, HR = rep.height;
+function drawReplay(){
+  const ratio = +document.getElementById('ratio').value;
+  document.getElementById('ratioVal').textContent = ratio + '%';
+  rctx.clearRect(0,0,WR,HR);
+  const cols=10, rows=4, total=cols*rows;
+  const oldCount = Math.round(total * ratio / 100);
+  const cellW=(WR-40*dpr)/cols, cellH=(HR-50*dpr)/rows;
+  const startX=20*dpr, startY=30*dpr;
+  // shuffle deterministically
+  let order=[]; for(let i=0;i<total;i++) order.push(i<oldCount?1:0);
+  // Fisher-Yates shuffle with fixed seed
+  let s=12345; function srnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;}
+  for(let i=total-1;i>0;i--){ const j=Math.floor(srnd()*(i+1)); [order[i],order[j]]=[order[j],order[i]]; }
+  for(let i=0;i<total;i++){
+    const c=i%cols, r=Math.floor(i/cols);
+    const x=startX+c*cellW, y=startY+r*cellH;
+    rctx.fillStyle = order[i] ? '#6b7689' : '#6ee7a8';
+    rctx.fillRect(x+1, y+1, cellW-2, cellH-2);
+  }
+  // legend
+  rctx.fillStyle='#6ee7a8'; rctx.fillRect(startX, 10*dpr, 10*dpr, 10*dpr);
+  rctx.fillStyle='#c4ccda'; rctx.font=`${11*dpr}px sans-serif`; rctx.textAlign='left';
+  rctx.fillText('new data', startX+14*dpr, 19*dpr);
+  rctx.fillStyle='#6b7689'; rctx.fillRect(startX+80*dpr, 10*dpr, 10*dpr, 10*dpr);
+  rctx.fillText('replayed old data', startX+94*dpr, 19*dpr);
+  // stats
+  rctx.textAlign='right';
+  rctx.fillText(`batch: ${total-oldCount} new + ${oldCount} old`, WR-20*dpr, 19*dpr);
+}
+document.getElementById('ratio').oninput = drawReplay;
+drawReplay();
+
+// ---- Panel 2: EWC spring ----
+const ewcC = document.getElementById('ewc'), ectx = ewcC.getContext('2d'); fit(ewcC);
+const WE = ewcC.width, HE = ewcC.height;
+let ewcOn = true;
+document.getElementById('toggleEwc').onclick = function(){
+  ewcOn = !ewcOn; this.textContent = ewcOn ? 'EWC: ON' : 'EWC: OFF';
+  this.classList.toggle('ghost', !ewcOn);
+  drawEwc();
+};
+function drawEwc(){
+  const lam = +document.getElementById('lam').value;
+  document.getElementById('lamVal').textContent = lam;
+  ectx.clearRect(0,0,WE,HE);
+  const pad=30*dpr, trackY=HE/2, trackW=WE-2*pad;
+  // draw track
+  ectx.strokeStyle='#283044'; ectx.lineWidth=2*dpr;
+  ectx.beginPath(); ectx.moveTo(pad, trackY); ectx.lineTo(WE-pad, trackY); ectx.stroke();
+  // ticks
+  ectx.fillStyle='#9aa3b2'; ectx.font=`${10*dpr}px sans-serif`; ectx.textAlign='center';
+  for(let i=0;i<=5;i++){ const x=pad+(trackW*i/5); ectx.fillText((i/5).toFixed(1), x, trackY+16*dpr); }
+  // old optimum
+  const oldX = pad + trackW*0.4;
+  ectx.strokeStyle='#6ee7a8'; ectx.lineWidth=2*dpr;
+  ectx.beginPath(); ectx.moveTo(oldX, trackY-20*dpr); ectx.lineTo(oldX, trackY+20*dpr); ectx.stroke();
+  ectx.fillStyle='#6ee7a8'; ectx.fillText('A optimum', oldX, trackY-24*dpr);
+  // new pull target
+  const newX = pad + trackW*0.9;
+  ectx.strokeStyle='#5cc8ff'; ectx.lineWidth=1.5*dpr;
+  ectx.setLineDash([4*dpr, 4*dpr]);
+  ectx.beginPath(); ectx.moveTo(newX, trackY-20*dpr); ectx.lineTo(newX, trackY+20*dpr); ectx.stroke();
+  ectx.setLineDash([]);
+  ectx.fillStyle='#5cc8ff'; ectx.fillText('B pulls here', newX, trackY-24*dpr);
+  // compute equilibrium: pull from B, spring back from A
+  // simple model: final position = oldX + (newX-oldX) / (1 + lam/1000) if EWC on
+  let pos;
+  if(ewcOn){
+    const strength = lam / 1000;
+    pos = oldX + (newX - oldX) / (1 + strength * 2);
+  } else {
+    pos = newX;
+  }
+  // spring visualization
+  if(ewcOn){
+    ectx.strokeStyle='#ff8a5c'; ectx.lineWidth=2*dpr;
+    ectx.beginPath();
+    for(let x=oldX; x<=pos; x+=3*dpr){
+      const y=trackY + Math.sin((x-oldX)/(pos-oldX)*Math.PI*6)*6*dpr;
+      x===oldX?ectx.moveTo(x,y):ectx.lineTo(x,y);
+    }
+    ectx.stroke();
+    ectx.fillStyle='#ff8a5c'; ectx.fillText('EWC spring', (oldX+pos)/2, trackY-10*dpr);
+  }
+  // weight blob
+  ectx.fillStyle='#e7e9ee';
+  ectx.beginPath(); ectx.arc(pos, trackY, 7*dpr, 0, 7); ectx.fill();
+  ectx.fillStyle='#e7e9ee'; ectx.font=`${11*dpr}px sans-serif`;
+  ectx.fillText('weight value', pos, trackY+22*dpr);
+}
+document.getElementById('lam').oninput = drawEwc;
+drawEwc();
+
+// ---- Panel 3: adapter library ----
+const adp = document.getElementById('adapters'), actx = adp.getContext('2d'); fit(adp);
+const WA = adp.width, HA = adp.height;
+let activeTask = 0;
+function setTask(t){ activeTask = t; drawAdapters(); }
+function drawAdapters(){
+  actx.clearRect(0,0,WA,HA);
+  const tasks=['Task A','Task B','Task C'];
+  const boxW=100*dpr, boxH=70*dpr, gap=30*dpr;
+  const startX=(WA - (3*boxW+2*gap))/2;
+  const baseY=HA/2 + 20*dpr;
+  // base model
+  actx.fillStyle='#6b7689'; actx.globalAlpha=0.25;
+  actx.fillRect(startX, baseY-90*dpr, 3*boxW+2*gap, 50*dpr); actx.globalAlpha=1;
+  actx.strokeStyle='#6b7689'; actx.lineWidth=1.5*dpr;
+  actx.strokeRect(startX, baseY-90*dpr, 3*boxW+2*gap, 50*dpr);
+  actx.fillStyle='#9aa3b2'; actx.font=`${11*dpr}px sans-serif`; actx.textAlign='center';
+  actx.fillText('FROZEN BASE MODEL', startX+(3*boxW+2*gap)/2, baseY-64*dpr);
+  // adapters
+  tasks.forEach((name,i)=>{
+    const x=startX+i*(boxW+gap), y=baseY;
+    const isActive = i===activeTask;
+    actx.fillStyle = isActive ? '#16321f' : '#0e1118';
+    actx.strokeStyle = isActive ? '#6ee7a8' : '#28304a';
+    actx.lineWidth = isActive ? 2.5*dpr : 1*dpr;
+    actx.fillRect(x, y, boxW, boxH); actx.strokeRect(x, y, boxW, boxH);
+    actx.fillStyle = isActive ? '#6ee7a8' : '#9aa3b2';
+    actx.font=`${isActive?13:12}dpr sans-serif`; actx.textAlign='center';
+    actx.fillText(name, x+boxW/2, y+boxH/2+4*dpr);
+    if(isActive){
+      actx.fillStyle='#6ee7a8'; actx.font=`${10*dpr}px sans-serif`;
+      actx.fillText('● ACTIVE', x+boxW/2, y+boxH+14*dpr);
+      // connection line
+      actx.strokeStyle='#6ee7a8'; actx.lineWidth=2*dpr;
+      actx.beginPath(); actx.moveTo(x+boxW/2, y); actx.lineTo(x+boxW/2, y-40*dpr); actx.stroke();
+    }
+  });
+  // arrow down from base to active adapter
+  const ax=startX+activeTask*(boxW+gap)+boxW/2, ay=baseY-40*dpr;
+  actx.strokeStyle='#6ee7a8'; actx.lineWidth=2*dpr;
+  actx.beginPath(); actx.moveTo(ax, ay); actx.lineTo(ax, ay+10*dpr); actx.stroke();
+  actx.beginPath(); actx.moveTo(ax-4*dpr, ay+6*dpr); actx.lineTo(ax, ay+10*dpr); actx.lineTo(ax+4*dpr, ay+6*dpr); actx.stroke();
+  // note
+  actx.fillStyle='#c4ccda'; actx.font=`${11*dpr}px sans-serif`; actx.textAlign='left';
+  actx.fillText('Adapters are independent. Task A adapter never changes after it is saved.', startX, 22*dpr);
+}
+drawAdapters();
+
+window.addEventListener('resize', ()=>location.reload());
+</script>
+
+<script>
+window.TUTOR_CONFIG = {
+  caseTitle: "Case 06 · Continual Learning Toolkit",
+  context: "Interactive comparison of continual learning methods. Panel 1: replay buffer composition — mixing old and new data in each batch. Panel 2: EWC (Elastic Weight Consolidation) — a spring penalty that pulls important weights back toward their old values. Panel 3: per-task LoRA adapters — separate small adapters for each task, eliminating forgetting at the cost of needing task ID at inference. Core concepts: replay ratio, Fisher information, EWC lambda, modular adapters, and the trade-offs between methods.",
+  suggestions: [
+    "Why is replay the strongest baseline?",
+    "When should I use EWC instead of replay?",
+    "How do I choose between adapters and a single model with replay?"
+  ]
+};
+</script>
+<script src="../assets/tutor.js"></script>
+</body>
+</html>

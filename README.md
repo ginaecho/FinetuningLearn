@@ -26,9 +26,9 @@ The cases are ordered so each one earns the next. The whole path is built to lan
 | 02 | **LoRA from scratch** | Medium | Why low-rank adapters work; implement LoRA in ~30 lines | ✅ Built |
 | 03 | **QLoRA on a real LLM** | Medium+ | 4-bit quantization + LoRA; fine-tune on a free Colab T4 | ✅ Built |
 | 04 | **Instruction / SFT tuning** | Pro-ish | Datasets, chat templates, eval; measure if it actually learned | 🔜 |
-| 05 | **Catastrophic forgetting — see it happen** | Pro-ish | Train task B, watch task A collapse; *measure* forgetting | 🔜 |
-| 06 | **Continual learning toolkit** | Pro | Replay, EWC, LoRA-per-task, distillation — when to use which | 🔜 |
-| 07 | **Capstone: Auto-car continual fine-tuning** | Pro | Cost vs accuracy vs forgetting on a streaming-update problem | 🔜 |
+| 05 | **Catastrophic forgetting — see it happen** | Pro-ish | Train task B, watch task A collapse; *measure* forgetting | ✅ Built |
+| 06 | **Continual learning toolkit** | Pro | Replay, EWC, LoRA-per-task, distillation — when to use which | ✅ Built |
+| 07 | **Capstone: Auto-car continual fine-tuning** | Pro | Cost vs accuracy vs forgetting on a streaming-update problem | ✅ Built |
 
 ✅ = ready to learn now. 🔜 = built as you progress (so each builds on what you actually ran).
 
