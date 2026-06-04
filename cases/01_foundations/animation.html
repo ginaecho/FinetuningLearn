@@ -210,6 +210,79 @@
     </div></details>
   </div>
 
+  <!-- BOTTOM: batches & epochs -->
+  <div class="panel" style="grid-column:1 / -1;">
+    <h2>4 · Batches &amp; epochs — how the data actually feeds training</h2>
+    <canvas id="batch" height="190"></canvas>
+    <div class="row">
+      <label>Batch size</label>
+      <input id="bs" type="range" min="1" max="24" step="1" value="6">
+      <span class="val" id="bsv">6</span>
+      <button id="brun">▶ Run training</button>
+      <button id="breset" class="ghost">Reset</button>
+    </div>
+    <div class="legend" id="bmsg">24 samples · click ▶ to watch batches feed the model, epoch by epoch.</div>
+    <div class="note">
+      The dots are your <b>training examples</b>. Training feeds them to the model a <b>batch</b> at a time;
+      one pass through <b>all</b> the data is an <b>epoch</b>. Each batch = one weight update (one step).
+      <span style="color:var(--accent2)">Smaller batch → more, noisier steps;</span>
+      <span style="color:var(--good)">bigger batch → fewer, smoother steps.</span>
+    </div>
+    <details class="theory"><summary>📖 What are batch, epoch, step — and how do they train a model?</summary>
+    <div class="tbody">
+      <h4>The vocabulary (this trips everyone up at first)</h4>
+      <ul>
+        <li><b class="term">Sample / example</b> — one data point (one image, one sentence, one (x,y) pair).</li>
+        <li><b class="term">Dataset</b> — all your samples. Here, 24 dots.</li>
+        <li><b class="term">Batch (mini-batch)</b> — a small group of samples processed together before the
+        model updates once. "Batch size" = how many samples per group.</li>
+        <li><b class="term">Step / iteration</b> — <b>one weight update</b>, computed from <b>one batch</b>.</li>
+        <li><b class="term">Epoch</b> — one full sweep through the <b>entire</b> dataset (all batches once).</li>
+      </ul>
+
+      <h4>How they fit together (the actual training loop)</h4>
+      <p>Training repeats this:</p>
+      <ol>
+        <li>Shuffle the dataset, split it into batches.</li>
+        <li>For each batch: predict → measure loss on those samples → compute gradient → take one step
+        (<span class="formula">w ← w − lr·gradient</span>). That's <b>one step</b>.</li>
+        <li>When every batch has been used once, that's <b>one epoch</b>. Repeat for several epochs.</li>
+      </ol>
+      <p>The arithmetic that ties it together:</p>
+      <p style="text-align:center">
+        <span class="formula">steps_per_epoch = dataset_size ÷ batch_size</span><br>
+        <span class="formula">total_steps = epochs × steps_per_epoch</span>
+      </p>
+      <p>Example: 24 samples, batch size 6 → 4 steps per epoch. Train 5 epochs → 20 weight updates total.
+      (Watch the counters in the animation prove this.)</p>
+
+      <h4>Why use batches at all? Why not all data at once, or one sample at a time?</h4>
+      <ul>
+        <li><b>Memory:</b> the whole dataset (millions of samples) won't fit in GPU memory — a batch does.</li>
+        <li><b>Speed:</b> GPUs love crunching a batch in parallel — far faster than one-at-a-time.</li>
+        <li><b>Generalization:</b> each batch gives a slightly <i>noisy</i> gradient estimate. That noise is
+        actually helpful — it nudges the model out of bad spots and tends to generalize better. This is why
+        it's called <b class="term">Stochastic</b> Gradient Descent (SGD): "stochastic" = the randomness from
+        sampling batches.</li>
+      </ul>
+
+      <h4>The trade-off you control with batch size</h4>
+      <ul>
+        <li><b>Small batch</b> (e.g. 1–8): many updates per epoch, noisy/zig-zag path, less memory, often
+        better generalization, but slower per epoch.</li>
+        <li><b>Large batch</b> (e.g. 256+): fewer, smoother updates, uses more memory, faster per epoch, but
+        can need a tuned learning rate to match small-batch quality.</li>
+      </ul>
+
+      <h4>How this connects to fine-tuning &amp; your capstone</h4>
+      <p>Fine-tuning is the <b>same loop</b>, just started from pre-trained weights with a small learning rate
+      and <b>few epochs</b> (often 1–3). For your self-driving model, when a new batch of driving data
+      arrives, you run a handful of epochs over it. Key question for later: if you only train on the
+      <i>new</i> data's batches, the model never "sees" the old data again during these steps — a big reason
+      it <b>forgets</b> (Case 05). One fix is to mix old samples into the batches (replay, Case 06).</p>
+    </div></details>
+  </div>
+
 </div>
 
 <script>
@@ -301,7 +374,66 @@ document.getElementById('modeFull').onclick=()=>{ gridMode='full'; document.getE
 document.getElementById('modeLoRA').onclick=()=>{ gridMode='lora'; document.getElementById('modeLoRA').className=''; document.getElementById('modeFull').className='ghost'; loopGrid(); };
 loopGrid();
 
-window.addEventListener('resize',()=>{ [land,ft,grid].forEach(c=>{c.width=0;}); location.reload(); });
+// ---------- Panel 4: batches & epochs ----------
+const batch=document.getElementById('batch'), bx=batch.getContext('2d'); fitCanvas(batch);
+const N=24; const bsEl=document.getElementById('bs');
+let order=[...Array(N).keys()], bStep=0, bEpoch=0, bLoss=2.0, bAnim=null, curBatch=[];
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]];} return a; }
+function drawBatch(){
+  const W=batch.width,H=batch.height; bx.clearRect(0,0,W,H);
+  const B=+bsEl.value, cols=12, cw=W*0.5/cols, top=44*devicePixelRatio, ch=cw;
+  // title row
+  bx.fillStyle='#9aa3b2'; bx.font=`${12*devicePixelRatio}px sans-serif`;
+  bx.fillText('dataset (24 samples) — orange = current batch', 12*devicePixelRatio, 22*devicePixelRatio);
+  // dots
+  for(let k=0;k<N;k++){
+    const idx=order[k]; const r=(k/cols)|0, c=k%cols;
+    const dx=14*devicePixelRatio+c*cw, dy=top+r*ch;
+    const inBatch=curBatch.includes(k);
+    bx.fillStyle = inBatch ? '#ff8a5c' : '#2a3346';
+    bx.beginPath(); bx.arc(dx+cw*0.35, dy+cw*0.35, cw*0.28, 0, 7); bx.fill();
+  }
+  // model box
+  const mbx=W*0.6, mby=top, mbw=W*0.16, mbh=ch*1.6;
+  bx.globalAlpha=0.18; bx.fillStyle='#5cc8ff'; bx.fillRect(mbx,mby,mbw,mbh); bx.globalAlpha=1;
+  bx.strokeStyle='#5cc8ff'; bx.strokeRect(mbx,mby,mbw,mbh);
+  bx.fillStyle='#e7e9ee'; bx.textAlign='center'; bx.fillText('model', mbx+mbw/2, mby+mbh/2+4*devicePixelRatio); bx.textAlign='left';
+  // loss sparkline area
+  const lx=W*0.6, ly=top+mbh+18*devicePixelRatio, lw=W*0.36, lh=H-ly-14*devicePixelRatio;
+  bx.strokeStyle='#283044'; bx.strokeRect(lx,ly,lw,lh);
+  bx.fillStyle='#9aa3b2'; bx.fillText('loss', lx, ly-4*devicePixelRatio);
+  if(lossHist.length>1){
+    bx.strokeStyle='#6ee7a8'; bx.lineWidth=2*devicePixelRatio; bx.beginPath();
+    const mx=Math.max(...lossHist), mn=Math.min(...lossHist,0);
+    lossHist.forEach((v,i)=>{ const xx=lx+lw*i/(maxHist-1); const yy=ly+lh-(v-mn)/((mx-mn)||1)*lh;
+      i?bx.lineTo(xx,yy):bx.moveTo(xx,yy); }); bx.stroke();
+  }
+  // counters
+  const B2=+bsEl.value, spe=Math.ceil(N/B2);
+  document.getElementById('bmsg').innerHTML =
+    `batch size <b>${B2}</b> → <b>${spe}</b> steps/epoch &nbsp;·&nbsp; epoch <b>${bEpoch}</b> &nbsp;·&nbsp; `+
+    `step <b>${bStep}</b> &nbsp;·&nbsp; loss <b>${bLoss.toFixed(3)}</b>`;
+}
+let lossHist=[bLoss]; const maxHist=80;
+function stepBatch(){
+  const B=+bsEl.value, spe=Math.ceil(N/B);
+  const within = bStep % spe;            // which batch of the current epoch
+  curBatch=[]; for(let i=within*B;i<Math.min((within+1)*B,N);i++) curBatch.push(i);
+  // synthetic SGD: loss drops, with noise inversely related to batch size
+  const noise=(Math.random()-0.5)*(0.12*(8/B));
+  bLoss=Math.max(0.02, bLoss*0.92 + noise);
+  lossHist.push(bLoss); if(lossHist.length>maxHist) lossHist.shift();
+  bStep++;
+  if(bStep % spe===0){ bEpoch++; shuffle(order); }   // finished an epoch
+  drawBatch();
+  if(bEpoch>=6){ clearInterval(bAnim); bAnim=null; curBatch=[]; drawBatch(); }
+}
+document.getElementById('brun').onclick=()=>{ if(bAnim)return; if(bEpoch>=6){bEpoch=0;bStep=0;bLoss=2;lossHist=[bLoss];} bAnim=setInterval(stepBatch,420); };
+document.getElementById('breset').onclick=()=>{ clearInterval(bAnim); bAnim=null; bEpoch=0;bStep=0;bLoss=2;lossHist=[bLoss];curBatch=[]; shuffle(order); drawBatch(); };
+bsEl.oninput=()=>{ document.getElementById('bsv').textContent=bsEl.value; if(!bAnim) drawBatch(); };
+drawBatch();
+
+window.addEventListener('resize',()=>{ [land,ft,grid,batch].forEach(c=>{c.width=0;}); location.reload(); });
 </script>
 
 <!-- AI tutor: ask questions about this page. Bring your own API key (Claude or OpenAI). -->
@@ -312,11 +444,15 @@ window.TUTOR_CONFIG = {
     + "landscape (a ball rolling downhill; learning-rate slider shows tiny=slow, huge=overshoot). "
     + "Panel 2: pre-train vs fine-tune as the same hill with different start points; a new task shifts "
     + "the minimum and fine-tuning reaches it in a few small steps. Panel 3: full fine-tuning (updates "
-    + "~100% of weights) vs LoRA (updates ~4%). Core ideas: loss surfaces, learning rate, warm start vs "
-    + "cold start, and a first hint of catastrophic forgetting.",
+    + "~100% of weights) vs LoRA (updates ~4%). Panel 4: batches & epochs — 24 samples fed to the model a "
+    + "batch at a time; one full pass = one epoch; each batch = one weight update (step); "
+    + "steps_per_epoch = dataset_size / batch_size; smaller batch = more, noisier steps (stochastic gradient "
+    + "descent). Core ideas: loss surfaces, learning rate, warm vs cold start, batch/epoch/step training "
+    + "loop, and a first hint of catastrophic forgetting.",
   suggestions: [
+    "Explain batch vs epoch vs step simply.",
     "Why does a warm start beat training from scratch?",
-    "What exactly is the learning rate doing here?",
+    "What does the learning rate actually do?",
     "How does this connect to catastrophic forgetting?"
   ]
 };
