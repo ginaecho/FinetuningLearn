@@ -49,8 +49,8 @@ pip install -r requirements.txt
 pip install bitsandbytes
 ```
 
-> **No NVIDIA GPU?** Skip `bitsandbytes`. Use **Google Colab** (free T4 GPU) for Cases 03+:
-> upload the notebook, then `Runtime → Change runtime type → T4 GPU`.
+> **No NVIDIA GPU?** Skip `bitsandbytes`. Use **Google Colab** (free T4 GPU) for Cases 03+ —
+> see [§6b below](#6b-google-colab-cases-03) for the full walkthrough.
 
 ---
 
@@ -111,6 +111,50 @@ pip install jupyterlab
 jupyter lab            # opens in your browser
 ```
 Or just open the `.ipynb` files in **VS Code** (install the Jupyter extension) — same thing, nicer UI.
+
+---
+
+## 6b. Google Colab (Cases 03+)
+
+From Case 03 onward, notebooks need a GPU for QLoRA fine-tuning. The easiest (and cheapest) way is **Google Colab** — a free cloud Jupyter environment with an NVIDIA T4 GPU (16 GB VRAM).
+
+> **Never used Colab?** It's like Google Docs but for code. You don't install anything — it runs in your browser.
+
+### First time: upload and run a notebook
+
+1. **Open Colab:** go to [colab.research.google.com](https://colab.research.google.com) and sign in with any Google account.
+2. **Upload the notebook:**
+   - Click **File → Upload notebook**.
+   - Pick the `.ipynb` file from the case folder on your computer (e.g. `cases/03_qlora_real_llm/qlora_finetune.ipynb`).
+   - Alternatively, if this repo is on GitHub: **File → Open notebook → GitHub** tab → paste the repo URL → select the notebook.
+3. **Select a GPU:**
+   - **Runtime → Change runtime type** → set **Hardware accelerator** to **T4 GPU** → **Save**.
+   - Confirm by checking the top-right corner — it should show "T4" or a GPU icon.
+4. **Run all cells:** **Runtime → Run all** (or `Ctrl+F9`).
+   - The first cell runs `!pip install ...` to install packages in the Colab VM (~2 min). This only lasts for the current session.
+   - Then it trains. The default small model finishes in ~5 minutes.
+5. **Save your work:**
+   - Colab auto-saves to your Google Drive (under "Colab Notebooks").
+   - To get the `.ipynb` back to your computer: **File → Download → Download .ipynb**.
+
+### Things to know
+
+| Topic | What to expect |
+|-------|---------------|
+| **Cost** | Free. Google gives you a T4 GPU at no charge. There's a usage cap (a few hours/day) — more than enough for learning. |
+| **Session timeout** | Disconnects after ~90 min idle or ~12 hours total. Keep the tab open/active during training. |
+| **Files disappear** | The Colab VM is ephemeral — uploaded files, installed packages, and trained adapters are deleted when the session ends. Download any adapter you want to keep (`model.save_pretrained(...)` then right-click the folder → Download). |
+| **Colab Pro** | $10/month gets you longer sessions, A100 GPUs, and more RAM. Not needed for this curriculum. |
+| **GPU not available** | If Colab says no GPUs are free, wait a bit and try again, or try at off-peak hours (US mornings). |
+
+### Verifying the GPU
+
+Run this cell in any Colab notebook to confirm:
+```python
+import torch
+print(torch.cuda.is_available())          # True
+print(torch.cuda.get_device_name(0))      # Tesla T4
+```
 
 ---
 
