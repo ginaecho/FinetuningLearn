@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case NN · TITLE — Animated</title>
+<!-- Shared styling (page, panels, theory expanders). Tutor styles are injected by tutor.js. -->
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+<header>
+  <h1>Case NN · TITLE</h1>
+  <div class="sub">ONE-LINE HOOK. Play for a few minutes, then open the notebook.</div>
+</header>
+
+<div class="wrap">
+
+  <!-- ===== EXAMPLE PANEL: copy this block per idea you want to show ===== -->
+  <div class="panel full">
+    <h2>1 · PANEL TITLE — the idea in a phrase</h2>
+    <canvas id="demo" height="200"></canvas>
+    <div class="row">
+      <label>A knob</label>
+      <input id="knob" type="range" min="0" max="100" step="1" value="40">
+      <span class="val" id="knobv">40</span>
+      <button id="run">▶ Run</button>
+    </div>
+    <div class="note">Short caption: what the picture means and what the knob does.</div>
+
+    <!-- Every panel gets a "Read the theory" expander: define each term + each control. -->
+    <details class="theory"><summary>📖 What is this really?</summary>
+    <div class="tbody">
+      <h4>What am I looking at?</h4>
+      <p>Explain the visual in plain words. Use <b class="term">key terms</b> (green) on first mention.</p>
+      <h4>What does the <span class="btnref">knob</span> / <span class="btnref">button</span> do, and why?</h4>
+      <ul>
+        <li>Bullet the cause→effect so the learner predicts before they drag.</li>
+      </ul>
+      <h4>Formula (if any)</h4>
+      <p style="text-align:center"><span class="formula">y = f(x)</span></p>
+      <h4>How it connects to the capstone</h4>
+      <p>Tie back to: continually fine-tuning a self-driving model cheaply, accurately, without forgetting.</p>
+    </div></details>
+  </div>
+  <!-- ===== END EXAMPLE PANEL ===== -->
+
+</div>
+
+<script>
+// ---- minimal canvas demo (replace with your real animation) ----
+const c = document.getElementById('demo'), ctx = c.getContext('2d');
+const dpr = devicePixelRatio || 1;
+function fit(cv){ const r = cv.getBoundingClientRect(); cv.width = r.width*dpr; cv.height = cv.height*dpr; }
+fit(c);
+const knob = document.getElementById('knob');
+function draw(){
+  const W = c.width, H = c.height; ctx.clearRect(0,0,W,H);
+  const v = +knob.value/100;
+  ctx.strokeStyle = '#5cc8ff'; ctx.lineWidth = 2*dpr; ctx.beginPath();
+  for(let x=0;x<=1;x+=0.005){ const px=x*W, py=H/2 - Math.sin(x*Math.PI*2*(1+v*4))*H*0.35;
+    x?ctx.lineTo(px,py):ctx.moveTo(px,py); }
+  ctx.stroke();
+}
+knob.oninput = ()=>{ document.getElementById('knobv').textContent = knob.value; draw(); };
+document.getElementById('run').onclick = draw;
+draw();
+window.addEventListener('resize', ()=>{ c.width=0; location.reload(); });
+</script>
+
+<!-- ===== In-page tutor + self-updating lesson board. Just set the context. ===== -->
+<script>
+window.TUTOR_CONFIG = {
+  caseTitle: "Case NN · TITLE",
+  // Describe each panel so the tutor's answers fit THIS page.
+  context: "Describe the panels and the core concepts shown here, in 2-4 sentences.",
+  suggestions: [
+    "Explain the main idea on this page simply.",
+    "What's the single most important takeaway?",
+    "Give me a tiny PyTorch example."
+  ]
+};
+</script>
+<script src="../assets/tutor.js"></script>
+</body>
+</html>
