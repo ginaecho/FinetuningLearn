@@ -3,489 +3,572 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Case 06 · Continual Learning Toolkit — Animated</title>
+<title>Case 06 · Continual Learning Toolkit — Live Demo</title>
 <link rel="stylesheet" href="../assets/lesson.css">
+<style>
+.skills{display:flex;gap:14px;flex-wrap:wrap;margin:10px 0}
+.skill{flex:1;min-width:130px}
+.skill .lbl{font-size:12px;margin-bottom:3px}
+.skill .bar{height:18px;border-radius:6px;background:#1a1e2a;overflow:hidden;position:relative}
+.skill .fill{height:100%;border-radius:6px;transition:width .15s}
+.skill .pct{position:absolute;right:6px;top:0;line-height:18px;font-size:11px;font-weight:700;color:#fff}
+.method-btns{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.method-btns button{font-size:13px;padding:6px 12px}
+.method-btns button.sel{outline:2px solid #fff;outline-offset:1px}
+.ctrl-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.step-info{font-size:13px;color:var(--muted)}
+.results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:10px 0}
+.res-card{background:#0e1118;border:1px solid #28304a;border-radius:10px;padding:9px 11px;text-align:center}
+.res-card .mlbl{font-size:11px;color:var(--muted)}
+.res-card .ma{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+</style>
 </head>
 <body>
 <header>
   <h1>Case 06 · Continual Learning Toolkit</h1>
-  <div class="sub">Train on a new task, <b>measure</b> what happens to the old one — then try the four fixes yourself.</div>
+  <div class="sub">Same neural net, same new road — but now you have tools to fight forgetting. Try each method and compare.</div>
 </header>
 
 <div class="wrap">
 
-  <!-- ===== PANEL 1: the measurement sandbox ===== -->
-  <div class="panel full">
-    <h2>1 · The experiment: fine-tune on Task B, watch Task A</h2>
-    <div class="row" style="align-items:stretch">
-      <canvas id="sandbox" height="300" style="flex:1;min-width:320px"></canvas>
-      <div style="min-width:150px;display:flex;flex-direction:column;gap:9px">
-        <div class="metric"><div class="lbl">Task A retention (old)</div><div class="num" id="mA" style="color:#6ee7a8">100%</div></div>
-        <div class="metric"><div class="lbl">Task B accuracy (new)</div><div class="num" id="mB" style="color:#5cc8ff">30%</div></div>
-        <div class="metric"><div class="lbl">Forgetting (A lost)</div><div class="num" id="mF" style="color:#ff8a5c">0%</div></div>
-        <div class="metric"><div class="lbl">Extra cost</div><div class="num" id="mC" style="color:#fbbf24;font-size:14px">—</div></div>
-      </div>
+<!-- ====== PANEL 1: Method Comparison Lab ====== -->
+<div class="panel full">
+  <h2>1 · Method Lab: Pick a Defense, Then Train</h2>
+  <canvas id="cvMain" height="340"></canvas>
+
+  <div class="skills">
+    <div class="skill"><div class="lbl" style="color:var(--good)">☀ Task A (Sunny) Accuracy</div>
+      <div class="bar"><div class="fill" id="barA" style="background:var(--good);width:0%"></div><span class="pct" id="pctA">0%</span></div>
     </div>
-    <div class="row">
-      <label>method</label>
-      <button id="btnNaive" onclick="setMethod('naive')">Naive fine-tune</button>
-      <button id="btnReplay" class="ghost" onclick="setMethod('replay')">+ Replay</button>
-      <button id="btnEwc" class="ghost" onclick="setMethod('ewc')">+ EWC</button>
-      <button id="btnAdapt" class="ghost" onclick="setMethod('adapter')">Per-task adapters</button>
+    <div class="skill"><div class="lbl" style="color:#a78bfa">❄ Task B (Snow) Accuracy</div>
+      <div class="bar"><div class="fill" id="barB" style="background:#a78bfa;width:0%"></div><span class="pct" id="pctB">0%</span></div>
     </div>
-    <div class="row">
-      <label id="paramLbl">replay ratio (old %)</label>
-      <input id="param" type="range" min="0" max="50" step="5" value="20">
-      <span class="val" id="paramVal">20%</span>
-      <button id="btnTrain" onclick="toggleTrain()">▶ Train on B</button>
-      <button class="ghost" onclick="resetSim()">Reset</button>
-    </div>
-    <div class="howto">
-      <div class="card see"><span class="tag">👁 What you're seeing</span> The car was an expert on <b style="color:#6ee7a8">Task A = sunny roads</b>.
-        Now we fine-tune it on <b style="color:#5cc8ff">Task B = snowy roads</b>. The two lines are accuracy <i>during</i> that training:
-        green = how well it still drives in sun, blue = how well it now drives in snow. <b style="color:#ff8a5c">Forgetting</b> is how much green dropped.</div>
-      <div class="card try"><span class="tag">🎮 Try this</span> Start on <b>Naive</b>, press <b>Train</b> — watch green crater while blue climbs (that's catastrophic forgetting).
-        Reset, switch to <b>+ Replay</b>, set the slider to 20%, retrain — green now survives. Then push <b>+ EWC</b>'s λ to max and see B struggle to learn. Finally try <b>adapters</b>: green never moves at all. Which method best keeps <i>both</i> high?</div>
-    </div>
-    <details class="theory"><summary>📖 Why this single experiment is the whole field</summary>
-    <div class="tbody">
-      <h4>The measurement is the point</h4>
-      <p>Continual learning is not about a clever trick — it's about a <b class="term">metric</b>. After training on B,
-      you re-test on A. The drop in A is <b class="term">forgetting</b>. Every method below is just a different way to keep
-      that drop small <i>without</i> crippling how well B is learned.</p>
-      <h4>What each method does to the curves</h4>
-      <ul>
-        <li><b class="term">Naive</b> — only B in the batch. Green collapses toward chance; blue rises fast. Cheap, but the old skill is gone.</li>
-        <li><b class="term">Replay</b> — mix a fraction of old A samples into every batch. Green is held up because the optimizer still <i>sees</i> A. Slider = how much old data (15–30% is the research sweet spot).</li>
-        <li><b class="term">EWC</b> — add a penalty that resists changing weights important to A. Green is protected by the penalty strength λ, but high λ makes blue learn slowly (the model is too rigid).</li>
-        <li><b class="term">Adapters</b> — freeze the base, train a brand-new LoRA for B. A's adapter is untouched on disk → green stays at 100%. Cost: you must know which adapter to load at test time (a <b>router</b>).</li>
-      </ul>
-      <h4>The trade-off you're feeling</h4>
-      <p>There is no free lunch: protecting A (high green) usually slows B (low blue), and zero-forgetting adapters add routing cost.
-      The "best" method depends on your budget and how different the tasks are (Case 05 panel 2).</p>
-    </div></details>
   </div>
 
-  <!-- ===== PANEL 2: replay buffer ===== -->
-  <div class="panel">
-    <h2>2 · Replay — keep old data in the batch</h2>
-    <canvas id="replay" height="170"></canvas>
-    <canvas id="valley" height="120" style="margin-top:8px"></canvas>
-    <div class="row">
-      <label>replay ratio (old %)</label>
-      <input id="ratio" type="range" min="0" max="50" step="5" value="20">
-      <span class="val" id="ratioVal">20%</span>
-    </div>
-    <div class="howto">
-      <div class="card see"><span class="tag">👁 Seeing</span> Top: one mini-batch streaming in — <b style="color:#6ee7a8">green</b> = new snow samples, <b style="color:#9aa3b2">gray</b> = replayed sunny samples.
-        Bottom: the loss landscape. <b>A's valley</b> and <b>B's valley</b> overlap; the white ball is where the optimizer settles.</div>
-      <div class="card try"><span class="tag">🎮 Try</span> Slide ratio to 0% — the ball dives into B's valley only (A forgotten). Raise it — the ball moves into the <b>shared valley</b> that works for both.</div>
-    </div>
-    <details class="theory"><summary>📖 How does replay prevent forgetting?</summary>
-    <div class="tbody">
-      <h4>The idea</h4>
-      <p>Instead of training <b>only</b> on new data, mix in a small fraction of representative old samples.
-      The optimizer must find weights that work for <b>both</b> distributions at once.</p>
-      <h4>What the bottom landscape means</h4>
-      <p>Each "valley" is a region of weights that drives one task well. With pure-B training the ball rolls into B's
-      valley and leaves A's. Replay reshapes the combined loss so the lowest point sits in the <b class="term">overlap</b> —
-      good enough for both.</p>
-      <h4>Production note</h4>
-      <p>Replay is the <b>strongest baseline</b> in the literature (tutorial §2, §9). Many fancier methods lose to a
-      well-tuned replay buffer. The cost is storage (you must keep old samples) and slightly slower B-learning.</p>
-    </div></details>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:4px">Pick a method to protect Task A while learning Task B:</div>
+  <div class="method-btns" id="methodBtns">
+    <button onclick="pickMethod(0)" style="background:#ff5c5c;color:#fff" id="m0" class="sel">❌ Naive (no protection)</button>
+    <button onclick="pickMethod(1)" style="background:#5cc8ff;color:#04222f" id="m1">🔄 Replay</button>
+    <button onclick="pickMethod(2)" style="background:#fbbf24;color:#2a1e00" id="m2">🔒 EWC</button>
+    <button onclick="pickMethod(3)" style="background:#6ee7a8;color:#0a2a1a" id="m3">🧩 Adapters</button>
   </div>
 
-  <!-- ===== PANEL 3: EWC spring ===== -->
-  <div class="panel">
-    <h2>3 · EWC — a spring on important weights</h2>
-    <canvas id="ewc" height="170"></canvas>
-    <div class="row">
-      <label>λ (penalty strength)</label>
-      <input id="lam" type="range" min="0" max="2000" step="100" value="1000">
-      <span class="val" id="lamVal">1000</span>
-      <button id="release" onclick="releaseWeight()">↻ Release weight</button>
-    </div>
-    <div class="howto">
-      <div class="card see"><span class="tag">👁 Seeing</span> One weight on a track. <b style="color:#6ee7a8">A optimum</b> = where it should sit for sunny driving.
-        <b style="color:#5cc8ff">B pulls</b> it right. The <b style="color:#ff8a5c">orange spring</b> is EWC's penalty — stiffer when this weight mattered more to A.</div>
-      <div class="card try"><span class="tag">🎮 Try</span> Press <b>Release</b> at λ=0 — the weight snaps fully to B (A forgotten). Crank λ up and release again — the spring holds it near A. Too stiff and it can't reach B at all.</div>
-    </div>
-    <details class="theory"><summary>📖 What is EWC and Fisher information?</summary>
-    <div class="tbody">
-      <h4>Elastic Weight Consolidation</h4>
-      <p>After learning A, EWC estimates which parameters matter most for A — their <b class="term">Fisher information</b> F.
-      During B-training it adds a penalty for moving those weights:</p>
-      <p style="text-align:center"><span class="formula">Loss = Loss_B + (λ/2) · Σ F_i · (θ_i − θ*_i)²</span></p>
-      <p>θ*_i is the old optimal value. A high-F weight gets a stiff spring; a low-F weight is free to move.</p>
-      <h4>What the λ slider does</h4>
-      <ul>
-        <li>λ = 0 → no spring → pure B → forget A.</li>
-        <li>λ moderate → weight settles between A and B → both okay.</li>
-        <li>λ huge → weight frozen at A → B never learned.</li>
-      </ul>
-      <h4>Limitation</h4>
-      <p>EWC constrains the parameter space, so it protects A but doesn't <i>teach</i> B as fully as replay. That's why
-      replay usually wins when you can afford to store old data.</p>
-    </div></details>
+  <div class="ctrl-row">
+    <button id="btnTrain" onclick="toggleTrain()">▶ Train on Snow</button>
+    <button class="ghost" onclick="resetAll()">↺ Reset</button>
+    <div class="step-info">Step <span id="stepNum">0</span></div>
   </div>
 
-  <!-- ===== PANEL 4: adapter library + router ===== -->
-  <div class="panel full">
-    <h2>4 · Adapter library — one LoRA per task, plus a router</h2>
-    <canvas id="adapters" height="240"></canvas>
-    <div class="row">
-      <button onclick="sendQuery()">▶ Send a driving situation</button>
-      <label style="min-width:auto"><input type="checkbox" id="noisyRouter"> noisy router (sometimes picks wrong)</label>
+  <div class="ctrl-row" id="paramRow">
+    <div class="row" style="margin:0;flex:1;min-width:180px" id="replayRow">
+      <label style="min-width:90px">Replay ratio</label>
+      <input type="range" id="slReplay" min="0" max="80" value="30">
+      <span class="val" id="vReplay">30%</span>
     </div>
-    <div class="howto">
-      <div class="card see"><span class="tag">👁 Seeing</span> The <b style="color:#9aa3b2">frozen base model</b> on top; three saved LoRA adapters below (highway / urban / snow).
-        A situation drops in, the <b>router</b> decides which adapter to load, and the path lights up to the answer.</div>
-      <div class="card try"><span class="tag">🎮 Try</span> Press <b>Send</b> a few times — each situation routes to its matching adapter, zero forgetting. Now tick <b>noisy router</b> and send again: a wrong pick gives a bad answer. That's the catch — adapters need a reliable router.</div>
+    <div class="row" style="margin:0;flex:1;min-width:180px" id="ewcRow">
+      <label style="min-width:90px">EWC strength (λ)</label>
+      <input type="range" id="slEWC" min="0" max="200" value="50">
+      <span class="val" id="vEWC">50</span>
     </div>
-    <details class="theory"><summary>📖 How do per-task adapters eliminate forgetting?</summary>
-    <div class="tbody">
-      <h4>The architecture</h4>
-      <p>Train adapter A, <b>save it</b>; train a fresh adapter B, save it; train C, save it. Each is a tiny file
-      (tens of KB for small rank). Because A's file is never re-opened during B-training, A <b>cannot</b> be forgotten.</p>
-      <h4>The catch: routing</h4>
-      <p>At inference you must load the right adapter. If you know the situation, easy. If not, you need a
-      <b class="term">router</b> (learned or heuristic). A wrong route = the wrong expert answers — the failure mode the
-      checkbox simulates.</p>
-      <h4>Trade-offs</h4>
-      <ul>
-        <li><b>Pros:</b> zero forgetting, adapters independent, cheap to store thousands (MLSys 2024 in tutorial).</li>
-        <li><b>Cons:</b> need task ID / router at test time; no cross-task generalization inside one adapter.</li>
-      </ul>
-      <h4>Connection to the capstone</h4>
-      <p>A self-driving stack keeps stable "core driving" in the frozen base, and situation adapters
-      (highway, urban, construction) on top. Case 07 combines this with retrieval and replay.</p>
-    </div></details>
   </div>
 
+  <div class="howto">
+    <div class="card see"><span class="tag">👁 What you're seeing</span>
+      Same setup as Case 05: <b style="color:var(--good)">green dashed</b> = sunny target, <b style="color:#a78bfa">purple dashed</b> = snow target, <b style="color:#fff">white solid</b> = model prediction.
+      But now the <b>method</b> you pick changes HOW the model trains. With the right method, the white curve can learn to fit snow <b>without destroying</b> its fit on sunny.</div>
+    <div class="card try"><span class="tag">🎮 Try this</span>
+      1. Start with <b>Naive</b>. Train ~100 steps. Watch Task A collapse (just like Case 05).<br>
+      2. Reset. Pick <b>Replay 🔄</b> at 30%. Train again. Task A holds much better!<br>
+      3. Reset. Try <b>EWC 🔒</b>. Notice it protects A differently — some weights are frozen.<br>
+      4. Reset. Try <b>Adapters 🧩</b>. Task A stays at 100% — it has its own separate weights.</div>
+  </div>
+
+  <details class="theory"><summary>📖 How each method works</summary>
+    <div class="tbody">
+      <h4>Naive (no protection)</h4>
+      <p>Train only on Task B data. All weights shift toward B. Task A is destroyed. This is the <b class="term">catastrophic forgetting</b> baseline from Case 05.</p>
+      <h4>Replay 🔄</h4>
+      <p><b class="term">Experience replay</b> mixes old Task A samples into every training batch. If 30% of each batch is Task A data, the model keeps practicing A while learning B. The <b class="btnref">Replay ratio</b> slider controls this mix. Higher ratio = better A retention, but slower B learning.</p>
+      <h4>EWC 🔒</h4>
+      <p><b class="term">Elastic Weight Consolidation</b> adds a penalty for changing "important" weights. After training on A, we compute the <b class="term">Fisher information</b> for each weight — a score of how much that weight matters for Task A. During B training, the loss becomes: <span class="formula">L = L_B + (λ/2) · Σ F_i · (θ_i − θ*_i)²</span>. High-Fisher weights resist change. The <b class="btnref">λ slider</b> controls penalty strength.</p>
+      <h4>Adapters 🧩</h4>
+      <p><b class="term">Per-task adapters</b> (like LoRA in practice) give each task its own parameters. Task A's weights are frozen forever. Task B gets a fresh set. A router picks which set to use. Forgetting is impossible — but you need storage for each adapter.</p>
+      <h4>Self-driving takeaway</h4>
+      <p>Real autonomous vehicles use a <b>combination</b>: adapters for distinct environments (highway vs. city vs. snow), replay for gradual improvements, and EWC-like regularization during fine-tuning. Case 07 shows how to combine these.</p>
+    </div>
+  </details>
 </div>
 
+<!-- ====== PANEL 2: Inside the Training Batch ====== -->
+<div class="panel">
+  <h2>2 · Inside the Training Batch</h2>
+  <canvas id="cvBatch" height="280"></canvas>
+
+  <div class="howto">
+    <div class="card see"><span class="tag">👁 What you're seeing</span>
+      Each dot is a training sample. <b style="color:var(--good)">Green</b> = Task A (sunny) sample. <b style="color:#a78bfa">Purple</b> = Task B (snow) sample.
+      In <b>Naive</b> mode, the batch is all purple — no A practice.
+      In <b>Replay</b> mode, green dots are mixed in — the model sees both tasks every step.
+      The dots flow downward to show new batches arriving each step.</div>
+    <div class="card try"><span class="tag">🎮 Try this</span>
+      Switch between Naive and Replay while training. Watch the batch composition change instantly.
+      Drag the <b>Replay ratio</b> slider: at 0% it's pure B (like Naive). At 80% it's mostly A (slow B learning). Find the sweet spot.</div>
+  </div>
+</div>
+
+<!-- ====== PANEL 3: Weight Protection Map ====== -->
+<div class="panel">
+  <h2>3 · Weight Protection Map</h2>
+  <canvas id="cvProtect" height="280"></canvas>
+
+  <div class="howto">
+    <div class="card see"><span class="tag">👁 What you're seeing</span>
+      Each bar is one of the model's 25 weights.
+      <b>Top row:</b> <b style="color:#fbbf24">Fisher importance</b> score — how much each weight matters for Task A (computed after pre-training). Tall bar = very important for sunny driving.
+      <b>Bottom row:</b> <b style="color:#ff5c5c">Actual drift</b> — how much each weight has moved from its Task A value.
+      In <b>EWC</b> mode, high-importance weights resist change (short red bars for tall yellow bars). In <b>Naive</b> mode, all weights drift freely.</div>
+    <div class="card try"><span class="tag">🎮 Try this</span>
+      Train with <b>EWC</b> and watch: weights with tall yellow bars (high Fisher importance) have short red bars (small drift). EWC is protecting them.
+      Now switch to <b>Naive</b> and reset — ALL weights drift equally, because there's no protection.
+      Try high λ (200): almost no drift, but the model can barely learn B either.</div>
+  </div>
+</div>
+
+<!-- ====== PANEL 4: Scoreboard ====== -->
+<div class="panel full">
+  <h2>4 · Method Scoreboard — Run All Four and Compare</h2>
+  <div class="results-grid" id="scoreboard">
+    <div class="res-card" id="sc0"><div class="mlbl">❌ Naive</div><div class="ma" style="color:#ff5c5c">—</div><div class="mlbl">Task A after 150 steps</div></div>
+    <div class="res-card" id="sc1"><div class="mlbl">🔄 Replay</div><div class="ma" style="color:#5cc8ff">—</div><div class="mlbl">Task A after 150 steps</div></div>
+    <div class="res-card" id="sc2"><div class="mlbl">🔒 EWC</div><div class="ma" style="color:#fbbf24">—</div><div class="mlbl">Task A after 150 steps</div></div>
+    <div class="res-card" id="sc3"><div class="mlbl">🧩 Adapters</div><div class="ma" style="color:#6ee7a8">—</div><div class="mlbl">Task A after 150 steps</div></div>
+  </div>
+  <button class="ghost" onclick="runAll()">⚡ Auto-run all 4 methods (150 steps each)</button>
+
+  <div class="howto">
+    <div class="card see"><span class="tag">👁 What you're seeing</span>
+      Each card shows Task A accuracy after 150 training steps on Task B, for each method. Higher = less forgetting. Adapters always score 100% (separate weights). Replay and EWC depend on their settings.</div>
+    <div class="card try"><span class="tag">🎮 Try this</span>
+      Press <b>⚡ Auto-run</b> to see all four methods race. Then adjust Replay ratio or EWC λ and run again — can you get Replay to beat EWC? What settings make them equal?</div>
+  </div>
+
+  <details class="theory"><summary>📖 Which method should I use in practice?</summary>
+    <div class="tbody">
+      <p><b class="term">Replay</b> is the strongest baseline in research — simple, effective, and doesn't require computing Fisher information. The cost: you need to <b>store old data</b>.</p>
+      <p><b class="term">EWC</b> is useful when you <b>can't store old data</b> (privacy, storage limits). It only needs the Fisher scores from the previous task, not the actual data.</p>
+      <p><b class="term">Adapters</b> guarantee zero forgetting, but you need one adapter per task. In LoRA terms, this is cheap (~1-5% of model params per adapter), so it's very popular in practice.</p>
+      <p>Production systems (like autonomous vehicles) combine all three: <b>adapters</b> for major environment shifts, <b>replay</b> for continuous improvement, and <b>regularization</b> as a safety net. Case 07 puts it together.</p>
+    </div>
+  </details>
+</div>
+
+</div><!-- /wrap -->
+
 <script>
-const dpr = devicePixelRatio || 1;
-function fit(c){ const r=c.getBoundingClientRect(); c.width=Math.max(1,r.width*dpr); c.height=Math.max(1,c.height*dpr); }
+// ===== Neural net engine (shared with Case 05) =====
+var H = 8, NP = 3*H+1;
 
-// ============================================================
-// PANEL 1: measurement sandbox
-// ============================================================
-const sbC = document.getElementById('sandbox'), sb = sbC.getContext('2d');
-const STEPS = 40;
-let method = 'naive';
-let curStep = 0;          // 0..STEPS, fractional while animating
-let trainTimer = null;
+function makeNet() {
+  var n = {w1:new Float64Array(H), b1:new Float64Array(H), w2:new Float64Array(H), b2:0};
+  for(var i=0;i<H;i++){n.w1[i]=(Math.random()-.5)*1.6;n.b1[i]=(Math.random()-.5)*.4;n.w2[i]=(Math.random()-.5)*1.6}
+  n.b2=(Math.random()-.5)*.2;
+  return n;
+}
+function cloneNet(n){return {w1:new Float64Array(n.w1),b1:new Float64Array(n.b1),w2:new Float64Array(n.w2),b2:n.b2}}
+function fwd(n,x){var s=0;for(var i=0;i<H;i++)s+=n.w2[i]*Math.tanh(n.w1[i]*x+n.b1[i]);return s+n.b2}
+function getParams(n){var p=[];for(var i=0;i<H;i++)p.push(n.w1[i]);for(var i=0;i<H;i++)p.push(n.b1[i]);for(var i=0;i<H;i++)p.push(n.w2[i]);p.push(n.b2);return p}
+function setParams(n,p){for(var i=0;i<H;i++)n.w1[i]=p[i];for(var i=0;i<H;i++)n.b1[i]=p[H+i];for(var i=0;i<H;i++)n.w2[i]=p[2*H+i];n.b2=p[3*H]}
 
-// accuracy models (return {a,b} in 0..1) for a given method, param, and step t
-function accAt(t){
-  const p = +document.getElementById('param').value;
-  const ex = (tau)=>Math.exp(-t/tau);
-  let a, b, cost;
-  if(method === 'naive'){
-    a = 0.15 + 0.80*ex(8);
-    b = 0.95 - 0.65*ex(6);
-    cost = 'low (1×)';
-  } else if(method === 'replay'){
-    const r = p/50;                       // 0..1
-    const floor = 0.20 + 0.72*r;          // retention floor rises with replay
-    a = floor + (0.95-floor)*ex(8);
-    const bMax = 0.95 - 0.04*r;
-    b = bMax - (bMax-0.30)*ex(6 + r*4);   // B a touch slower with heavy replay
-    cost = r>0 ? 'medium (store old data)' : 'low (1×)';
-  } else if(method === 'ewc'){
-    const pr = p/2000;                    // protection 0..1
-    const floor = 0.15 + 0.80*pr;
-    a = floor + (0.95-floor)*ex(8);
-    const bMax = 0.95 - 0.45*pr;          // rigid model caps lower
-    b = bMax - (bMax-0.30)*ex(6 + 16*pr); // and learns slower
-    cost = 'medium (store Fisher + θ*)';
-  } else { // adapter
-    a = 0.985;                            // frozen separate adapter → no forgetting
-    b = 0.95 - 0.65*ex(6);
-    cost = 'low compute + router';
-  }
-  return {a, b, cost};
+var XMIN=-Math.PI, XMAX=Math.PI;
+var taskA = function(x){return Math.sin(x)};
+var taskB = function(x){return 0.7*Math.cos(1.8*x)};
+
+function sampleBatch(fn, n){
+  var xs=[],ys=[];
+  for(var i=0;i<n;i++){var x=XMIN+Math.random()*(XMAX-XMIN);xs.push(x);ys.push(fn(x))}
+  return {xs:xs,ys:ys};
 }
 
-function setMethod(m){
-  method = m;
-  for(const [id,key] of [['btnNaive','naive'],['btnReplay','replay'],['btnEwc','ewc'],['btnAdapt','adapter']]){
-    document.getElementById(id).classList.toggle('ghost', key!==m);
-  }
-  const lbl = document.getElementById('paramLbl'), inp = document.getElementById('param');
-  if(m==='replay'){ lbl.textContent='replay ratio (old %)'; inp.min=0; inp.max=50; inp.step=5; inp.value=20; inp.disabled=false; }
-  else if(m==='ewc'){ lbl.textContent='λ (EWC penalty)'; inp.min=0; inp.max=2000; inp.step=100; inp.value=1000; inp.disabled=false; }
-  else { lbl.textContent = m==='naive' ? '(no knob — pure B)' : '(no knob — separate adapter)'; inp.disabled=true; }
-  syncParamLabel();
-  drawSandbox();
-}
-function syncParamLabel(){
-  const inp = document.getElementById('param');
-  document.getElementById('paramVal').textContent = method==='replay' ? inp.value+'%' : method==='ewc' ? inp.value : '—';
-}
-document.getElementById('param').oninput = ()=>{ syncParamLabel(); drawSandbox(); };
-
-function toggleTrain(){
-  const btn = document.getElementById('btnTrain');
-  if(trainTimer){ clearInterval(trainTimer); trainTimer=null; btn.textContent='▶ Train on B'; return; }
-  if(curStep>=STEPS) curStep=0;
-  btn.textContent='⏸ Pause';
-  trainTimer = setInterval(()=>{
-    curStep += 1;
-    if(curStep>=STEPS){ curStep=STEPS; clearInterval(trainTimer); trainTimer=null; btn.textContent='▶ Train on B'; }
-    drawSandbox();
-  }, 60);
-}
-function resetSim(){
-  if(trainTimer){ clearInterval(trainTimer); trainTimer=null; document.getElementById('btnTrain').textContent='▶ Train on B'; }
-  curStep = 0; drawSandbox();
+function accuracy(net, fn){
+  var N=60,se=0,sv=0;
+  for(var i=0;i<N;i++){var x=XMIN+(XMAX-XMIN)*i/(N-1);var y=fn(x);se+=(fwd(net,x)-y)*(fwd(net,x)-y);sv+=y*y}
+  var rmse=Math.sqrt(se/N), scale=Math.max(Math.sqrt(sv/N),0.5);
+  return Math.max(0,Math.min(1,1-rmse/scale));
 }
 
-function drawSandbox(){
-  const W=sbC.width, H=sbC.height;
-  const padL=42*dpr, padR=14*dpr, padT=16*dpr, padB=30*dpr;
-  const gw=W-padL-padR, gh=H-padT-padB;
-  sb.clearRect(0,0,W,H);
+// ===== Training methods =====
+var LR = 0.06;
 
-  // grid + axes
-  sb.strokeStyle='#283044'; sb.lineWidth=1*dpr;
-  sb.beginPath(); sb.moveTo(padL,padT); sb.lineTo(padL,H-padB); sb.lineTo(W-padR,H-padB); sb.stroke();
-  sb.fillStyle='#9aa3b2'; sb.font=`${10*dpr}px sans-serif`; sb.textAlign='right';
-  [0,0.5,1].forEach(v=>{ const y=H-padB-v*gh; sb.fillText((v*100)+'%', padL-6*dpr, y+3*dpr);
-    sb.strokeStyle='#1a2030'; sb.beginPath(); sb.moveTo(padL,y); sb.lineTo(W-padR,y); sb.stroke(); });
-  sb.textAlign='center'; sb.fillText('training steps on Task B →', padL+gw/2, H-8*dpr);
-
-  const xOf=(t)=>padL+(t/STEPS)*gw;
-  const yOf=(v)=>H-padB-v*gh;
-
-  // draw a full curve up to current step
-  function curve(key,color){
-    sb.strokeStyle=color; sb.lineWidth=2.5*dpr; sb.beginPath();
-    const N=Math.max(1,Math.ceil(curStep));
-    for(let i=0;i<=N;i++){ const t=Math.min(i,curStep); const v=accAt(t)[key];
-      const x=xOf(t), y=yOf(v); i===0?sb.moveTo(x,y):sb.lineTo(x,y); }
-    sb.stroke();
-    // endpoint dot + faint target
-    const tgt=accAt(STEPS)[key];
-    sb.fillStyle=color+'55'; sb.beginPath(); sb.arc(xOf(STEPS),yOf(tgt),3*dpr,0,7); sb.fill();
-    const cur=accAt(curStep)[key];
-    sb.fillStyle=color; sb.beginPath(); sb.arc(xOf(curStep),yOf(cur),4.5*dpr,0,7); sb.fill();
-  }
-  curve('a','#6ee7a8');
-  curve('b','#5cc8ff');
-
-  // legend
-  sb.textAlign='left'; sb.font=`${11*dpr}px sans-serif`;
-  sb.fillStyle='#6ee7a8'; sb.fillText('● Task A (sun, old)', padL+8*dpr, padT+12*dpr);
-  sb.fillStyle='#5cc8ff'; sb.fillText('● Task B (snow, new)', padL+8*dpr, padT+28*dpr);
-
-  // metrics
-  const now=accAt(curStep);
-  const forget=Math.max(0, accAt(0).a - now.a);
-  document.getElementById('mA').textContent=Math.round(now.a*100)+'%';
-  document.getElementById('mB').textContent=Math.round(now.b*100)+'%';
-  document.getElementById('mF').textContent=(forget>0.005?'−':'')+Math.round(forget*100)+'%';
-  document.getElementById('mF').style.color = forget>0.4?'#ff5c5c':forget>0.15?'#ff8a5c':'#6ee7a8';
-  document.getElementById('mC').textContent=now.cost;
+// Numerical gradient for arbitrary loss
+function gradStep(net, lossFn, lr){
+  var eps=1e-4, params=getParams(net);
+  var l0=lossFn(params);
+  var grad=new Array(NP);
+  for(var j=0;j<NP;j++){params[j]+=eps;var l1=lossFn(params);grad[j]=(l1-l0)/eps;params[j]-=eps}
+  var maxG=10;
+  for(var j=0;j<NP;j++){var g=Math.max(-maxG,Math.min(maxG,grad[j]));params[j]-=lr*g}
+  setParams(net,params);
+  return l0;
 }
 
-// ============================================================
-// PANEL 2: replay buffer + shared valley
-// ============================================================
-const repC=document.getElementById('replay'), rc=repC.getContext('2d'); fit(repC);
-const valC=document.getElementById('valley'), vc=valC.getContext('2d'); fit(valC);
-let repT=0;
-function getRatio(){ return +document.getElementById('ratio').value; }
-function drawReplay(){
-  const ratio=getRatio(); document.getElementById('ratioVal').textContent=ratio+'%';
-  const W=repC.width,H=repC.height; rc.clearRect(0,0,W,H);
-  const cols=14, rows=3, total=cols*rows;
-  const oldCount=Math.round(total*ratio/100);
-  const m=14*dpr; const cw=(W-2*m)/cols, ch=(H-2*m)/rows;
-  // deterministic membership, but scroll with repT for a "streaming" feel
-  let s=999; const rnd=()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; };
-  let mark=[]; for(let i=0;i<total;i++) mark.push(i<oldCount?1:0);
-  for(let i=total-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [mark[i],mark[j]]=[mark[j],mark[i]]; }
-  const shift=Math.floor(repT/6)%cols;
-  for(let i=0;i<total;i++){
-    const c=(i+shift)%cols, r=Math.floor(i/cols);
-    const x=m+c*cw, y=m+r*ch;
-    const appearing = ((i+shift)%cols)===0;
-    rc.globalAlpha = appearing?0.5:1;
-    rc.fillStyle=mark[i]?'#6b7689':'#6ee7a8';
-    rc.fillRect(x+1.5*dpr,y+1.5*dpr,cw-3*dpr,ch-3*dpr);
-    rc.globalAlpha=1;
-  }
-  rc.fillStyle='#c4ccda'; rc.font=`${10*dpr}px sans-serif`; rc.textAlign='left';
-  rc.fillText(`batch = ${total-oldCount} new + ${oldCount} old`, m, H-3*dpr);
-}
-function drawValley(){
-  const ratio=getRatio()/50; // 0..1
-  const W=valC.width,H=valC.height; vc.clearRect(0,0,W,H);
-  const padL=10*dpr,padR=10*dpr,padB=14*dpr,padT=8*dpr;
-  const gw=W-padL-padR, gh=H-padT-padB;
-  const aMin=0.30, bMin=0.72; // x-positions of the two basins (0..1)
-  // combined loss: weighted sum of two parabolas; replay weights A up
-  const wA=0.15+0.85*ratio, wB=1.0;
-  const loss=(x)=> wA*Math.pow((x-aMin)*2.6,2) + wB*Math.pow((x-bMin)*2.6,2);
-  // find min by scan
-  let bx=0,bl=1e9; for(let i=0;i<=200;i++){ const x=i/200; const l=loss(x); if(l<bl){bl=l;bx=x;} }
-  // normalize for drawing
-  let maxL=0; for(let i=0;i<=200;i++) maxL=Math.max(maxL,loss(i/200));
-  vc.strokeStyle='#5cc8ff'; vc.lineWidth=2*dpr; vc.beginPath();
-  for(let i=0;i<=200;i++){ const x=i/200; const y=loss(x)/maxL;
-    const px=padL+x*gw, py=padT+y*gh*0.9; i===0?vc.moveTo(px,py):vc.lineTo(px,py); }
-  vc.stroke();
-  // basin labels
-  vc.font=`${10*dpr}px sans-serif`; vc.textAlign='center';
-  vc.fillStyle='#6ee7a8'; vc.fillText('A valley', padL+aMin*gw, H-3*dpr);
-  vc.fillStyle='#5cc8ff'; vc.fillText('B valley', padL+bMin*gw, H-3*dpr);
-  // ball at minimum
-  const ballY=padT+(loss(bx)/maxL)*gh*0.9;
-  vc.fillStyle='#e7e9ee'; vc.beginPath(); vc.arc(padL+bx*gw, ballY, 6*dpr,0,7); vc.fill();
-  vc.fillStyle='#9aa3b2'; vc.fillText('optimizer settles here', padL+bx*gw, ballY-9*dpr);
-}
-document.getElementById('ratio').oninput=()=>{ drawReplay(); drawValley(); };
+function mseLoss(net,xs,ys){var s=0;for(var i=0;i<xs.length;i++){var d=fwd(net,xs[i])-ys[i];s+=d*d}return s/xs.length}
 
-// ============================================================
-// PANEL 3: EWC spring (animated release)
-// ============================================================
-const ewcC=document.getElementById('ewc'), ec=ewcC.getContext('2d'); fit(ewcC);
-let wPos=0.4, wVel=0, springing=false;
-function equilibrium(){
-  const lam=+document.getElementById('lam').value; const k=lam/1000;
-  // weight between A optimum (0.4) and B target (0.9); high k holds near A
-  return 0.4 + (0.9-0.4)/(1 + k*2);
+// Method 0: Naive — train only on B
+function trainNaive(net){
+  var b=sampleBatch(taskB,16);
+  var loss=function(p){setParams(net,p);return mseLoss(net,b.xs,b.ys)};
+  gradStep(net,loss,LR);
+  return {batchA:0,batchB:16};
 }
-function releaseWeight(){ wPos=0.9; wVel=0; springing=true; } // start pulled to B, let spring act
-function drawEwc(){
-  const lam=+document.getElementById('lam').value; document.getElementById('lamVal').textContent=lam;
-  // physics toward equilibrium
-  const eq=equilibrium();
-  if(springing){
-    const k=0.06+(lam/2000)*0.12; wVel += (eq-wPos)*k; wVel*=0.86; wPos+=wVel;
-    if(Math.abs(wVel)<0.0008 && Math.abs(eq-wPos)<0.004){ wPos=eq; springing=false; }
-  } else { wPos += (eq-wPos)*0.12; }
-  const W=ewcC.width,H=ewcC.height; ec.clearRect(0,0,W,H);
-  const pad=34*dpr, trackY=H*0.52, trackW=W-2*pad;
-  const xOf=(v)=>pad+v*trackW;
-  ec.strokeStyle='#283044'; ec.lineWidth=2*dpr; ec.beginPath(); ec.moveTo(pad,trackY); ec.lineTo(W-pad,trackY); ec.stroke();
-  ec.fillStyle='#9aa3b2'; ec.font=`${10*dpr}px sans-serif`; ec.textAlign='center';
-  for(let i=0;i<=5;i++){ const x=xOf(i/5); ec.fillText((i/5).toFixed(1), x, trackY+18*dpr); }
-  // A optimum
-  ec.strokeStyle='#6ee7a8'; ec.lineWidth=2*dpr; ec.beginPath(); ec.moveTo(xOf(0.4),trackY-18*dpr); ec.lineTo(xOf(0.4),trackY+14*dpr); ec.stroke();
-  ec.fillStyle='#6ee7a8'; ec.fillText('A optimum', xOf(0.4), trackY-22*dpr);
-  // B pull
-  ec.strokeStyle='#5cc8ff'; ec.setLineDash([4*dpr,4*dpr]); ec.lineWidth=1.5*dpr;
-  ec.beginPath(); ec.moveTo(xOf(0.9),trackY-18*dpr); ec.lineTo(xOf(0.9),trackY+14*dpr); ec.stroke(); ec.setLineDash([]);
-  ec.fillStyle='#5cc8ff'; ec.fillText('B pulls →', xOf(0.9), trackY-22*dpr);
-  // spring from A optimum to weight
-  const x0=xOf(0.4), x1=xOf(wPos);
-  ec.strokeStyle='#ff8a5c'; ec.lineWidth=2*dpr; ec.beginPath();
-  const coils=8;
-  for(let i=0;i<=coils*6;i++){ const f=i/(coils*6); const x=x0+(x1-x0)*f;
-    const y=trackY+Math.sin(f*Math.PI*coils)*5*dpr*(1-Math.abs(0.5-f)*0.4); i===0?ec.moveTo(x,y):ec.lineTo(x,y); }
-  ec.stroke();
-  const stiff=(lam/2000); ec.fillStyle='#ff8a5c'; ec.fillText(`EWC spring · F·λ stiffness ${(stiff).toFixed(2)}`, (x0+x1)/2, trackY+34*dpr);
-  // weight blob
-  ec.fillStyle='#e7e9ee'; ec.beginPath(); ec.arc(x1,trackY,7*dpr,0,7); ec.fill();
-  ec.fillStyle='#e7e9ee'; ec.fillText('weight = '+wPos.toFixed(2), x1, trackY-12*dpr);
-  requestAnimationFrame(drawEwc);
-}
-document.getElementById('lam').oninput=()=>{ document.getElementById('lamVal').textContent=document.getElementById('lam').value; };
 
-// ============================================================
-// PANEL 4: adapter library + router
-// ============================================================
-const adpC=document.getElementById('adapters'), ac=adpC.getContext('2d'); fit(adpC);
-const ADAPTERS=[{name:'highway',col:'#5cc8ff'},{name:'urban',col:'#6ee7a8'},{name:'snow',col:'#fbbf24'}];
-let query=null; // {type, routed, correct, t}
-function sendQuery(){
-  const type=Math.floor(Math.random()*3);
-  const noisy=document.getElementById('noisyRouter').checked;
-  const wrong = noisy && Math.random()<0.45;
-  let routed=type; if(wrong){ do{ routed=Math.floor(Math.random()*3);}while(routed===type); }
-  query={type, routed, correct:routed===type, t:0};
+// Method 1: Replay — mix A samples into batch
+function trainReplay(net){
+  var ratio=+document.getElementById('slReplay').value/100;
+  var nA=Math.round(16*ratio), nB=16-nA;
+  var bA=sampleBatch(taskA,Math.max(nA,0));
+  var bB=sampleBatch(taskB,Math.max(nB,1));
+  var xs=bA.xs.concat(bB.xs), ys=bA.ys.concat(bB.ys);
+  var loss=function(p){setParams(net,p);return mseLoss(net,xs,ys)};
+  gradStep(net,loss,LR);
+  return {batchA:nA,batchB:nB};
 }
-function drawAdapters(){
-  const W=adpC.width,H=adpC.height; ac.clearRect(0,0,W,H);
-  const bw=Math.min(150*dpr,(W-4*30*dpr)/3), gap=30*dpr;
-  const totalW=3*bw+2*gap, startX=(W-totalW)/2;
-  const baseY=42*dpr, baseH=40*dpr;
-  const adpY=H-78*dpr, adpH=52*dpr;
-  // frozen base
-  ac.fillStyle='#6b7689'; ac.globalAlpha=0.18; ac.fillRect(startX,baseY,totalW,baseH); ac.globalAlpha=1;
-  ac.strokeStyle='#6b7689'; ac.lineWidth=1.5*dpr; ac.strokeRect(startX,baseY,totalW,baseH);
-  ac.fillStyle='#9aa3b2'; ac.font=`${12*dpr}px sans-serif`; ac.textAlign='center';
-  ac.fillText('FROZEN BASE MODEL (shared core driving)', startX+totalW/2, baseY+baseH/2+4*dpr);
-  // adapters
-  ADAPTERS.forEach((a,i)=>{
-    const x=startX+i*(bw+gap);
-    const active = query && query.t>0.5 && query.routed===i;
-    ac.fillStyle = active? (query.correct?'#16321f':'#321616') : '#0e1118';
-    ac.strokeStyle = active? (query.correct?'#6ee7a8':'#ff5c5c') : a.col+'66';
-    ac.lineWidth = active?2.5*dpr:1.2*dpr;
-    ac.fillRect(x,adpY,bw,adpH); ac.strokeRect(x,adpY,bw,adpH);
-    ac.fillStyle=a.col; ac.font=`${12*dpr}px sans-serif`; ac.textAlign='center';
-    ac.fillText('LoRA: '+a.name, x+bw/2, adpY+adpH/2+4*dpr);
-  });
-  // router label
-  ac.fillStyle='#c4ccda'; ac.font=`${11*dpr}px sans-serif`;
-  ac.fillText('▼ router picks an adapter', W/2, baseY+baseH+22*dpr);
-  // animate query
-  if(query){
-    query.t=Math.min(1, query.t+0.03);
-    const a=ADAPTERS[query.routed];
-    const tx=startX+query.routed*(bw+gap)+bw/2;
-    const sx=W/2, sy=10*dpr;
-    const ey=adpY;
-    // path: down to base center, then to adapter
-    const midY=baseY+baseH+30*dpr;
-    let px,py;
-    if(query.t<0.5){ const f=query.t/0.5; px=sx; py=sy+(midY-sy)*f; }
-    else { const f=(query.t-0.5)/0.5; px=sx+(tx-sx)*f; py=midY+(ey-midY)*f; }
-    ac.fillStyle=ADAPTERS[query.type].col;
-    ac.beginPath(); ac.arc(px,py,6*dpr,0,7); ac.fill();
-    ac.fillStyle='#e7e9ee'; ac.font=`${10*dpr}px sans-serif`; ac.textAlign='center';
-    ac.fillText('situation: '+ADAPTERS[query.type].name, px, py-10*dpr);
-    if(query.t>=1){
-      ac.fillStyle=query.correct?'#6ee7a8':'#ff5c5c'; ac.font=`${12*dpr}px sans-serif`;
-      ac.fillText(query.correct?'✓ correct adapter → good driving':'✗ wrong adapter → bad output', W/2, H-6*dpr);
+
+// Method 2: EWC — penalize drift on important weights
+var fisherScores=null, starParams=null;
+function computeFisher(net){
+  starParams=getParams(net);
+  fisherScores=new Array(NP);
+  for(var j=0;j<NP;j++)fisherScores[j]=0;
+  var eps=1e-4;
+  for(var s=0;s<100;s++){
+    var x=XMIN+Math.random()*(XMAX-XMIN);
+    var y=taskA(x);
+    var params=getParams(net);
+    for(var j=0;j<NP;j++){
+      params[j]+=eps;setParams(net,params);var lp=Math.pow(fwd(net,x)-y,2);
+      params[j]-=2*eps;setParams(net,params);var lm=Math.pow(fwd(net,x)-y,2);
+      params[j]+=eps;setParams(net,params);
+      var g=(lp-lm)/(2*eps);
+      fisherScores[j]+=g*g;
     }
   }
-  requestAnimationFrame(drawAdapters);
+  for(var j=0;j<NP;j++)fisherScores[j]/=100;
 }
 
-// ============================================================
-// init
-// ============================================================
-function initAll(){
-  fit(sbC); fit(repC); fit(valC); fit(ewcC); fit(adpC);
-  setMethod('naive'); drawReplay(); drawValley();
+function trainEWC(net){
+  var lam=+document.getElementById('slEWC').value;
+  var b=sampleBatch(taskB,16);
+  var loss=function(p){
+    setParams(net,p);
+    var mse=mseLoss(net,b.xs,b.ys);
+    var reg=0;
+    for(var j=0;j<NP;j++)reg+=fisherScores[j]*(p[j]-starParams[j])*(p[j]-starParams[j]);
+    return mse + (lam/2)*reg/NP;
+  };
+  gradStep(net,loss,LR);
+  return {batchA:0,batchB:16};
 }
-initAll();
-drawEwc();       // self-looping
-drawAdapters();  // self-looping
-setInterval(()=>{ repT++; drawReplay(); }, 90);
-window.addEventListener('resize', ()=>{ setTimeout(initAll,120); });
+
+// Method 3: Adapters — separate parameter set for B
+var adapterB=null;
+function trainAdapters(net){
+  if(!adapterB)adapterB=cloneNet(net);
+  var b=sampleBatch(taskB,16);
+  var loss=function(p){setParams(adapterB,p);return mseLoss(adapterB,b.xs,b.ys)};
+  gradStep(adapterB,loss,LR);
+  return {batchA:0,batchB:16};
+}
+
+// ===== State =====
+var net, netA, method=0, training=false, step=0;
+var batchInfo={batchA:0,batchB:16};
+var batchAnim={dots:[],t:0};
+var EVAL_X=[];for(var i=0;i<100;i++)EVAL_X.push(XMIN+(XMAX-XMIN)*i/99);
+
+function pretrain(){
+  net=makeNet();
+  for(var i=0;i<500;i++){
+    var b=sampleBatch(taskA,16);
+    var loss=function(p){setParams(net,p);return mseLoss(net,b.xs,b.ys)};
+    gradStep(net,loss,0.05);
+  }
+  netA=cloneNet(net);
+  computeFisher(net);
+  adapterB=null;
+  step=0;
+}
+
+function pickMethod(idx){
+  method=idx;
+  document.querySelectorAll('#methodBtns button').forEach(function(b,i){b.classList.toggle('sel',i===idx)});
+  document.getElementById('replayRow').style.display=(idx===1)?'flex':'none';
+  document.getElementById('ewcRow').style.display=(idx===2)?'flex':'none';
+  drawAll();
+}
+
+function toggleTrain(){
+  training=!training;
+  document.getElementById('btnTrain').textContent=training?'⏸ Pause':'▶ Train on Snow';
+  if(training)raf();
+}
+
+function resetAll(){
+  training=false;
+  document.getElementById('btnTrain').textContent='▶ Train on Snow';
+  pretrain();
+  batchInfo={batchA:0,batchB:16};
+  drawAll();
+}
+
+document.getElementById('slReplay').oninput=function(){document.getElementById('vReplay').textContent=this.value+'%'};
+document.getElementById('slEWC').oninput=function(){document.getElementById('vEWC').textContent=this.value};
+
+// ===== Drawing =====
+var dpr=window.devicePixelRatio||1;
+function fit(c){var r=c.getBoundingClientRect();c.width=Math.max(1,Math.round(r.width*dpr));c.height=Math.max(1,Math.round(r.height*dpr));return c.getContext('2d')}
+
+function drawMain(){
+  var c=document.getElementById('cvMain'),ctx=fit(c),W=c.width,Hc=c.height;
+  ctx.clearRect(0,0,W,Hc);
+  var pad=50*dpr,pw=W-2*pad,ph=Hc-2*pad;
+  function tx(x){return pad+(x-XMIN)/(XMAX-XMIN)*pw}
+  function ty(y){return pad+ph/2-y/(2.2)*ph/2}
+
+  ctx.strokeStyle='#1e2230';ctx.lineWidth=dpr;
+  ctx.beginPath();ctx.moveTo(pad,ty(0));ctx.lineTo(W-pad,ty(0));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(tx(0),pad);ctx.lineTo(tx(0),Hc-pad);ctx.stroke();
+  ctx.fillStyle='#556';ctx.font=(11*dpr)+'px ui-sans-serif,system-ui,sans-serif';ctx.textAlign='center';
+  ctx.fillText('Road position',W/2,Hc-8*dpr);
+
+  // Task A target
+  ctx.setLineDash([6*dpr,4*dpr]);ctx.strokeStyle='#6ee7a8';ctx.lineWidth=2*dpr;
+  ctx.beginPath();for(var i=0;i<EVAL_X.length;i++)ctx[i?'lineTo':'moveTo'](tx(EVAL_X[i]),ty(taskA(EVAL_X[i])));ctx.stroke();
+  // Task B target
+  ctx.strokeStyle='#a78bfa';
+  ctx.beginPath();for(var i=0;i<EVAL_X.length;i++)ctx[i?'lineTo':'moveTo'](tx(EVAL_X[i]),ty(taskB(EVAL_X[i])));ctx.stroke();
+  // Model prediction
+  ctx.setLineDash([]);ctx.strokeStyle='#ffffff';ctx.lineWidth=2.5*dpr;
+  var predNet=(method===3&&adapterB)?adapterB:net;
+  ctx.beginPath();for(var i=0;i<EVAL_X.length;i++)ctx[i?'lineTo':'moveTo'](tx(EVAL_X[i]),ty(fwd(predNet,EVAL_X[i])));ctx.stroke();
+
+  // legend
+  ctx.font=(12*dpr)+'px ui-sans-serif,system-ui,sans-serif';ctx.textAlign='left';
+  var items=[{c:'#6ee7a8',t:'— — Sunny (Task A)'},{c:'#a78bfa',t:'— — Snow (Task B)'},{c:'#fff',t:'——— Model'}];
+  for(var i=0;i<items.length;i++){
+    ctx.fillStyle=items[i].c;ctx.fillRect(pad+10*dpr,pad+16*dpr+i*18*dpr-4*dpr,18*dpr,2.5*dpr);
+    ctx.fillStyle='#9aa3b2';ctx.fillText(items[i].t,pad+34*dpr,pad+16*dpr+i*18*dpr);
+  }
+
+  // method label
+  var mNames=['❌ Naive','🔄 Replay','🔒 EWC','🧩 Adapters'];
+  ctx.fillStyle='#fff';ctx.textAlign='right';ctx.font='bold '+(14*dpr)+'px ui-sans-serif,system-ui,sans-serif';
+  ctx.fillText('Method: '+mNames[method],W-pad,pad+20*dpr);
+
+  // skill bars
+  var accA, accB;
+  if(method===3){
+    accA=accuracy(net,taskA);
+    accB=adapterB?accuracy(adapterB,taskB):0;
+  } else {
+    accA=accuracy(net,taskA);
+    accB=accuracy(net,taskB);
+  }
+  document.getElementById('barA').style.width=Math.round(accA*100)+'%';
+  document.getElementById('pctA').textContent=Math.round(accA*100)+'%';
+  document.getElementById('barB').style.width=Math.round(accB*100)+'%';
+  document.getElementById('pctB').textContent=Math.round(accB*100)+'%';
+  document.getElementById('stepNum').textContent=step;
+}
+
+function drawBatch(){
+  var c=document.getElementById('cvBatch'),ctx=fit(c),W=c.width,Hc=c.height;
+  ctx.clearRect(0,0,W,Hc);
+  var pad=20*dpr;
+
+  // draw batch grid: 4×4 grid of dots
+  var nA=batchInfo.batchA, nB=batchInfo.batchB;
+  var total=nA+nB;
+  if(total===0)total=16;
+  var cols=4, rows=4;
+  var cellW=(W-2*pad)/cols, cellH=(Hc-60*dpr)/rows;
+  var r=Math.min(cellW,cellH)*0.3;
+
+  // animate dots flowing down
+  batchAnim.t=(batchAnim.t+0.02)%1;
+  var offsetY=training?(batchAnim.t*cellH):0;
+
+  for(var row=0;row<rows;row++){
+    for(var col=0;col<cols;col++){
+      var idx=row*cols+col;
+      var isA=idx<nA;
+      var cx=pad+col*cellW+cellW/2;
+      var cy=30*dpr+row*cellH+cellH/2+offsetY;
+      if(cy>Hc-pad)cy-=rows*cellH;
+
+      ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+      ctx.fillStyle=isA?'#6ee7a8':'#a78bfa';
+      ctx.globalAlpha=training?0.9:0.6;
+      ctx.fill();
+      ctx.globalAlpha=1;
+    }
+  }
+
+  // labels
+  ctx.font=(11*dpr)+'px ui-sans-serif,system-ui,sans-serif';ctx.textAlign='center';
+  ctx.fillStyle='#9aa3b2';
+  ctx.fillText(nA+' sunny + '+nB+' snow samples per batch',W/2,Hc-8*dpr);
+
+  // title label for current method
+  var titles=['All snow (no replay)','Mixed batch (replay)','All snow (EWC is in the loss, not the batch)','N/A (separate adapter)'];
+  ctx.fillStyle='#fff';ctx.font='bold '+(11*dpr)+'px ui-sans-serif,system-ui,sans-serif';
+  ctx.fillText(titles[method],W/2,18*dpr);
+}
+
+function drawProtection(){
+  var c=document.getElementById('cvProtect'),ctx=fit(c),W=c.width,Hc=c.height;
+  ctx.clearRect(0,0,W,Hc);
+  if(!fisherScores||!netA)return;
+  var pad=30*dpr, barW=Math.max(4,(W-2*pad)/NP-3*dpr);
+  var maxF=0;for(var i=0;i<NP;i++)if(fisherScores[i]>maxF)maxF=fisherScores[i];
+  if(maxF<0.001)maxF=0.001;
+
+  var pNow=getParams(net), pA=getParams(netA);
+  var drifts=[];var maxD=0;
+  for(var i=0;i<NP;i++){var d=Math.abs(pNow[i]-pA[i]);drifts.push(d);if(d>maxD)maxD=d}
+  if(maxD<0.01)maxD=0.01;
+
+  var topH=(Hc-80*dpr)/2, botH=topH;
+  var topY=40*dpr, botY=topY+topH+20*dpr;
+
+  // Fisher importance (top)
+  ctx.fillStyle='#fbbf24';ctx.font=(10*dpr)+'px ui-sans-serif,system-ui,sans-serif';ctx.textAlign='left';
+  ctx.fillText('Fisher importance (how much A needs this weight):',pad,topY-8*dpr);
+  for(var i=0;i<NP;i++){
+    var x=pad+i*(barW+3*dpr);
+    var h=fisherScores[i]/maxF*topH;
+    ctx.fillStyle='#fbbf24';ctx.globalAlpha=0.8;
+    ctx.fillRect(x,topY+topH-h,barW,h);
+    ctx.globalAlpha=1;
+  }
+
+  // Drift (bottom)
+  ctx.fillStyle='#ff5c5c';ctx.fillText('Actual drift from Task A values:',pad,botY-8*dpr);
+  for(var i=0;i<NP;i++){
+    var x=pad+i*(barW+3*dpr);
+    var h=drifts[i]/maxD*botH;
+    ctx.fillStyle='#ff5c5c';ctx.globalAlpha=0.8;
+    ctx.fillRect(x,botY+botH-h,barW,h);
+    ctx.globalAlpha=1;
+  }
+
+  // weight index labels
+  ctx.fillStyle='#556';ctx.font=(8*dpr)+'px ui-sans-serif,system-ui,sans-serif';ctx.textAlign='center';
+  for(var i=0;i<NP;i++){
+    var x=pad+i*(barW+3*dpr)+barW/2;
+    ctx.fillText(i,x,botY+botH+12*dpr);
+  }
+}
+
+function drawAll(){drawMain();drawBatch();drawProtection()}
+
+// ===== Training loop =====
+function raf(){
+  if(!training)return;
+  for(var i=0;i<5;i++){
+    if(method===0)batchInfo=trainNaive(net);
+    else if(method===1)batchInfo=trainReplay(net);
+    else if(method===2)batchInfo=trainEWC(net);
+    else if(method===3)batchInfo=trainAdapters(net);
+    step++;
+  }
+  drawAll();
+  requestAnimationFrame(raf);
+}
+
+// ===== Auto-run scoreboard =====
+function runAll(){
+  var results=[];
+  for(var m=0;m<4;m++){
+    var testNet=makeNet();
+    // pretrain
+    for(var i=0;i<500;i++){
+      var b=sampleBatch(taskA,16);
+      var loss=function(p){setParams(testNet,p);return mseLoss(testNet,b.xs,b.ys)};
+      gradStep(testNet,loss,0.05);
+    }
+    var testA=cloneNet(testNet);
+    // compute fisher for EWC
+    var testFisher=new Array(NP);var testStar=getParams(testNet);
+    for(var j=0;j<NP;j++)testFisher[j]=0;
+    if(m===2){
+      var eps2=1e-4;
+      for(var s=0;s<100;s++){
+        var x=XMIN+Math.random()*(XMAX-XMIN);var y=taskA(x);
+        var pp=getParams(testNet);
+        for(var j=0;j<NP;j++){
+          pp[j]+=eps2;setParams(testNet,pp);var lp2=Math.pow(fwd(testNet,x)-y,2);
+          pp[j]-=2*eps2;setParams(testNet,pp);var lm2=Math.pow(fwd(testNet,x)-y,2);
+          pp[j]+=eps2;setParams(testNet,pp);
+          var g2=(lp2-lm2)/(2*eps2);testFisher[j]+=g2*g2;
+        }
+      }
+      for(var j=0;j<NP;j++)testFisher[j]/=100;
+    }
+    var adpB=(m===3)?cloneNet(testNet):null;
+    // train 150 steps on B
+    var replayR=0.3, ewcLam=50;
+    for(var s=0;s<150;s++){
+      if(m===0){
+        var b=sampleBatch(taskB,16);
+        var loss=function(p){setParams(testNet,p);return mseLoss(testNet,b.xs,b.ys)};
+        gradStep(testNet,loss,LR);
+      } else if(m===1){
+        var nA2=Math.round(16*replayR),nB2=16-nA2;
+        var bA2=sampleBatch(taskA,Math.max(nA2,0)),bB2=sampleBatch(taskB,Math.max(nB2,1));
+        var xxs=bA2.xs.concat(bB2.xs),yys=bA2.ys.concat(bB2.ys);
+        var loss=function(p){setParams(testNet,p);return mseLoss(testNet,xxs,yys)};
+        gradStep(testNet,loss,LR);
+      } else if(m===2){
+        var b=sampleBatch(taskB,16);
+        var tF=testFisher,tS=testStar;
+        var loss=function(p){
+          setParams(testNet,p);var mse2=mseLoss(testNet,b.xs,b.ys);
+          var reg2=0;for(var j=0;j<NP;j++)reg2+=tF[j]*(p[j]-tS[j])*(p[j]-tS[j]);
+          return mse2+(ewcLam/2)*reg2/NP;
+        };
+        gradStep(testNet,loss,LR);
+      } else if(m===3){
+        var b=sampleBatch(taskB,16);
+        var loss=function(p){setParams(adpB,p);return mseLoss(adpB,b.xs,b.ys)};
+        gradStep(adpB,loss,LR);
+      }
+    }
+    var finalA=(m===3)?accuracy(testNet,taskA):accuracy(testNet,taskA);
+    results.push(Math.round(finalA*100));
+  }
+  var colors=['#ff5c5c','#5cc8ff','#fbbf24','#6ee7a8'];
+  for(var i=0;i<4;i++){
+    document.querySelector('#sc'+i+' .ma').textContent=results[i]+'%';
+    document.querySelector('#sc'+i+' .ma').style.color=colors[i];
+  }
+}
+
+// ===== Init =====
+pretrain();
+pickMethod(0);
+drawAll();
+window.addEventListener('resize',drawAll);
 </script>
 
 <script>
 window.TUTOR_CONFIG = {
   caseTitle: "Case 06 · Continual Learning Toolkit",
-  context: "Interactive sandbox comparing four anti-forgetting methods, framed as a self-driving car that knew Task A (sunny roads) and is fine-tuned on Task B (snowy roads). "
-    + "Panel 1 is a live measurement: pick a method (naive / replay / EWC / adapters) and a knob (replay ratio or EWC λ), press Train, and watch two accuracy curves — green=Task A retention, blue=Task B — plus metric cards for retention, B accuracy, forgetting, and cost. Naive collapses A; replay holds A up by mixing old samples; EWC λ protects A but high λ slows B; adapters keep A at 100%. "
-    + "Panel 2: replay batch composition (green new vs gray replayed) plus a loss landscape where the ball settles in the shared valley as replay ratio rises. "
-    + "Panel 3: EWC as an animated spring on one weight between the A optimum and the B pull; λ sets spring stiffness; a Release button shows the weight settling. "
-    + "Panel 4: a library of per-task LoRA adapters with a router; sending a driving situation animates the route to the matching adapter, and a 'noisy router' checkbox shows wrong-route failures. "
-    + "Core concepts: measuring forgetting, replay ratio, Fisher information and EWC λ, modular adapters, routing, and the accuracy-vs-cost trade-off.",
+  context: "This page lets the learner compare 4 anti-forgetting methods on a live neural network: Naive (no protection), Replay (mix old data into batches), EWC (penalize changes to important weights via Fisher information), and Adapters (separate parameters per task). The model is pre-trained on Task A (sunny road = sin(x)) then trained on Task B (snow = 0.7cos(1.8x)). Panel 1 shows the prediction curve and skill bars. Panel 2 visualizes batch composition. Panel 3 shows Fisher importance vs actual weight drift. Panel 4 is a scoreboard to compare all methods side by side.",
   suggestions: [
-    "Why does replay beat EWC in most papers?",
-    "What exactly is Fisher information in EWC?",
-    "If adapters have zero forgetting, why not always use them?",
-    "How do I read the green vs blue curves in Panel 1?"
+    "What does the Replay ratio slider actually control?",
+    "How do I read the Fisher importance bars?",
+    "Why do Adapters always get 100% on Task A?",
+    "Which method is best for a real self-driving system?"
   ]
 };
 </script>
