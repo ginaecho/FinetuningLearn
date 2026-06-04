@@ -9,104 +9,151 @@
 <body>
 <header>
   <h1>Case 07 · Capstone: Streaming Self-Driving Updates</h1>
-  <div class="sub">Cost vs accuracy vs forgetting: build the hybrid memory system that beats them all.</div>
+  <div class="sub">Cost vs accuracy vs forgetting — assemble the hybrid memory system that beats every pure approach.</div>
 </header>
 
 <div class="wrap">
 
-  <!-- Panel 1: hybrid architecture flow diagram -->
+  <!-- ===== PANEL 1: hybrid architecture ===== -->
   <div class="panel full">
-    <h2>1 · The hybrid architecture — how production systems actually work</h2>
-    <canvas id="hybrid" height="260"></canvas>
-    <div class="note">
-      <b>Real-time path (cheap):</b> every new experience goes into the vector DB and can be retrieved immediately.
-      <b>Slow path (consolidation):</b> periodically, a replay batch from the DB updates the LoRA, turning recurring patterns into compressed weights.
+    <h2>1 · The hybrid architecture — toggle each path and see what breaks</h2>
+    <canvas id="hybrid" height="250"></canvas>
+    <div class="row">
+      <label style="min-width:auto"><input type="checkbox" id="useRetrieval" checked> retrieval path (real-time)</label>
+      <label style="min-width:auto"><input type="checkbox" id="useReplay" checked> replay path (periodic)</label>
     </div>
-    <details class="theory"><summary>📖 Why a hybrid beats pure replay or pure retrieval?</summary>
+    <div class="howto">
+      <div class="card see"><span class="tag">👁 Seeing</span> Live data flows left→right. Every <b style="color:#ff8a5c">raw experience</b> lands in the
+        <b style="color:#5cc8ff">vector DB</b>. From there, two paths feed the car: <b style="color:#6ee7a8">retrieval</b> (instant, every drive) and
+        <b style="color:#fbbf24">periodic replay</b> that consolidates patterns into the LoRA weights.</div>
+      <div class="card try"><span class="tag">🎮 Try</span> Untick <b>retrieval</b>: the car loses instant recall of rare/new events. Untick <b>replay</b>: nothing ever gets compressed into weights — the car depends entirely on the DB being online. The status line tells you the cost of each choice.</div>
+    </div>
+    <details class="theory"><summary>📖 Why a hybrid beats pure replay or pure retrieval</summary>
     <div class="tbody">
       <h4>The three layers</h4>
       <ul>
         <li><b class="term">Foundation model</b> — frozen general knowledge (language, physics, road rules).</li>
-        <li><b class="term">Stable LoRA</b> — core driving skills learned via periodic replay. Updated monthly/quarterly. Fast at inference.</li>
-        <li><b class="term">Experience memory</b> — vector DB of raw episodes. Updated in real time. Retrieved for rare or novel situations.</li>
+        <li><b class="term">Stable LoRA</b> — core driving skills, updated by periodic replay (monthly/quarterly). Fast at inference.</li>
+        <li><b class="term">Experience memory</b> — vector DB of raw episodes, updated in real time, retrieved for rare/novel situations.</li>
       </ul>
       <h4>Why not just retrieval?</h4>
-      <p>Retrieval has no generalization. If the DB is down, the knowledge is gone. And you can't fit 100M experiences into a context window.</p>
+      <p>No generalization, and if the DB is down the knowledge is gone. You also can't fit 100M experiences into a context window.</p>
       <h4>Why not just replay?</h4>
-      <p>Retraining is expensive and slow. You don't want to re-certify a safety-critical model every day.</p>
-      <h4>The balance</h4>
-      <p>Retrieval handles <b>day-to-day surprises</b> (construction zone, local quirks). Replay <b>consolidates</b> recurring patterns into weights quarterly.
-      This mirrors human cognition: hippocampus (fast, episodic) → cortex (slow, generalized).</p>
+      <p>Retraining is expensive and slow; you don't want to re-certify a safety-critical model every day.</p>
+      <h4>The balance (hippocampus → cortex)</h4>
+      <p>Retrieval handles day-to-day surprises (construction, local quirks). Replay consolidates recurring patterns into
+      weights quarterly — exactly how the brain moves episodic memories into long-term cortical storage.</p>
     </div></details>
   </div>
 
-  <!-- Panel 2: replay vs retrieval interactive table -->
+  <!-- ===== PANEL 2: replay vs retrieval, live event stream ===== -->
   <div class="panel">
-    <h2>2 · Replay vs Retrieval — click to compare</h2>
-    <canvas id="compare" height="280"></canvas>
+    <h2>2 · Replay vs Retrieval — feed it a situation</h2>
+    <canvas id="vs" height="250"></canvas>
     <div class="row">
-      <button id="btnReplay" onclick="setMode('replay')">Show Replay</button>
-      <button id="btnRetrieval" onclick="setMode('retrieval')" class="ghost">Show Retrieval</button>
+      <button onclick="feed('repeat')">▶ Common event (pothole)</button>
+      <button onclick="feed('rare')">▶ Rare event (moose!)</button>
     </div>
-    <div class="note" id="compareNote">
-      <b>Replay</b> acts during <b>training</b>. It changes weights. High GPU cost, low inference cost, strong generalization.
+    <div class="row">
+      <label style="min-width:auto"><input type="checkbox" id="dbDown"> vector DB offline</label>
     </div>
-    <details class="theory"><summary>📖 When do they act, and what does each cost?</summary>
+    <div class="howto">
+      <div class="card see"><span class="tag">👁 Seeing</span> Two cars handle the same event. <b style="color:#6ee7a8">Replay car</b> changed its <i>weights</i> during training (watch its weight bar nudge).
+        <b style="color:#5cc8ff">Retrieval car</b> looks the event up in its DB at drive time (watch a memory row light up).</div>
+      <div class="card try"><span class="tag">🎮 Try</span> Send a <b>common</b> event — both do fine; replay handles it from generalized weights. Send a <b>rare</b> event — retrieval nails the exact match, replay is shakier. Now tick <b>DB offline</b> and send rare again: retrieval fails, but replay's baked-in weights still drive.</div>
+    </div>
+    <details class="theory"><summary>📖 They act at different times and cost different things</summary>
     <div class="tbody">
       <h4>The critical distinction</h4>
-      <p>These solve <b>different problems</b>. Asking which is "better" is like asking whether a database is better than training data.</p>
+      <p>Asking which is "better" is like asking whether a database beats training data — they solve different problems.</p>
       <table style="width:100%;font-size:12.5px;border-collapse:collapse;margin-top:6px">
-        <tr style="border-bottom:1px solid #283044"><th style="text-align:left;padding:4px 0">Aspect</th><th style="text-align:left;padding:4px 0;color:#6ee7a8">Replay</th><th style="text-align:left;padding:4px 0;color:#5cc8ff">Retrieval</th></tr>
-        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">When it acts</td><td>During training</td><td>During inference</td></tr>
-        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Weights change?</td><td>Yes</td><td>No</td></tr>
-        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">GPU cost</td><td>High</td><td>Low</td></tr>
-        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Storage cost</td><td>Medium</td><td>High</td></tr>
-        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Inference cost</td><td>Low</td><td>Medium</td></tr>
-        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Catastrophic forgetting</td><td>Low (with buffer)</td><td>None</td></tr>
-        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Knowledge updates</td><td>Slow (need retrain)</td><td>Immediate</td></tr>
-        <tr style="border-bottom:1px solid #1a2030"><td style="padding:3px 0">Recall of rare events</td><td>Poor</td><td>Excellent</td></tr>
+        <tr style="border-bottom:1px solid #283044"><th style="text-align:left;padding:4px 0">Aspect</th><th style="text-align:left;color:#6ee7a8">Replay</th><th style="text-align:left;color:#5cc8ff">Retrieval</th></tr>
+        <tr><td style="padding:3px 0">When it acts</td><td>During training</td><td>During inference</td></tr>
+        <tr><td style="padding:3px 0">Weights change?</td><td>Yes</td><td>No</td></tr>
+        <tr><td style="padding:3px 0">GPU cost</td><td>High</td><td>Low</td></tr>
+        <tr><td style="padding:3px 0">Updates</td><td>Slow (retrain)</td><td>Immediate</td></tr>
+        <tr><td style="padding:3px 0">Rare-event recall</td><td>Poor</td><td>Excellent</td></tr>
         <tr><td style="padding:3px 0">Generalization</td><td>Strong</td><td>Weak</td></tr>
+        <tr><td style="padding:3px 0">If store is gone</td><td>Knowledge stays</td><td>Knowledge lost</td></tr>
       </table>
       <h4>Analogy</h4>
-      <p><b>Replay = studying:</b> a student practices hundreds of problems until concepts become automatic.
-      They no longer need the textbook.</p>
-      <p><b>Retrieval = open-book exam:</b> the student looks up relevant examples during the test.
-      If the book is gone, the knowledge is gone.</p>
+      <p><b>Replay = studying:</b> practice until it's automatic; you no longer need the book.
+      <b>Retrieval = open-book exam:</b> look it up at test time — but if the book is gone, so is the answer.</p>
     </div></details>
   </div>
 
-  <!-- Panel 3: trade-off space -->
+  <!-- ===== PANEL 3: memory hierarchy / retrieval funnel ===== -->
   <div class="panel">
-    <h2>3 · The trade-off space — cost vs accuracy</h2>
-    <canvas id="tradeoff" height="280"></canvas>
+    <h2>3 · The memory funnel — 100M experiences → 3 lessons</h2>
+    <canvas id="funnel" height="250"></canvas>
+    <div class="row">
+      <button onclick="runFunnel()">▶ Run a retrieval query</button>
+    </div>
+    <div class="howto">
+      <div class="card see"><span class="tag">👁 Seeing</span> A query falls through the hierarchy: <b>vector search</b> narrows 100M memories to ~100, a <b>reranker</b> to ~10, a <b>summarizer</b> to ~3 lessons that fit the context window. The number shrinks at each stage.</div>
+      <div class="card try"><span class="tag">🎮 Try</span> Press <b>Run</b> and follow one query down. Notice the model <b>never</b> sees the full memory — only the 3 distilled lessons reach it. That's how retrieval scales past the context limit.</div>
+    </div>
+    <details class="theory"><summary>📖 Why a hierarchy instead of one big search?</summary>
+    <div class="tbody">
+      <h4>The scaling problem</h4>
+      <p>You can't put 100 million experiences in a 32k-token context. So retrieval is staged, like computer memory
+      (disk → SSD → RAM → cache):</p>
+      <p style="text-align:center"><span class="formula">100M → vector search → 100 → rerank → 10 → summarize → 3 → context</span></p>
+      <h4>Progressive abstraction</h4>
+      <p>A mature system doesn't store raw events forever. Thousands of "saw snow on road X" episodes get compressed into
+      one rule: <i>"when road temp &lt; 0°C, trust lane markings less."</i> Raw events → episode summaries → concepts → rules.</p>
+      <h4>Where replay and retrieval converge</h4>
+      <p>That compression <b>is</b> consolidation — the slow replay path in Panel 1. The funnel feeds inference today;
+      consolidation bakes the recurring lessons into weights for tomorrow.</p>
+    </div></details>
+  </div>
+
+  <!-- ===== PANEL 4: trade-off simulator ===== -->
+  <div class="panel full">
+    <h2>4 · Tune the hybrid: cost vs accuracy vs forgetting</h2>
+    <div class="row" style="align-items:stretch">
+      <canvas id="tradeoff" height="260" style="flex:1;min-width:300px"></canvas>
+      <div style="min-width:160px;display:flex;flex-direction:column;gap:9px">
+        <div class="metric"><div class="lbl">Accuracy (all tasks)</div><div class="num" id="tAcc" style="color:#6ee7a8">—</div></div>
+        <div class="metric"><div class="lbl">Forgetting</div><div class="num" id="tForget" style="color:#ff8a5c">—</div></div>
+        <div class="metric"><div class="lbl">Monthly cost (GPU+store)</div><div class="num" id="tCost" style="color:#fbbf24">—</div></div>
+        <div class="metric"><div class="lbl">Verdict</div><div class="num" id="tVerd" style="font-size:13px">—</div></div>
+      </div>
+    </div>
     <div class="row">
       <label>replay frequency</label>
-      <input id="freq" type="range" min="0" max="100" step="10" value="50">
-      <span class="val" id="freqVal">medium</span>
+      <input id="freq" type="range" min="0" max="100" step="5" value="50">
+      <span class="val" id="freqVal">monthly</span>
     </div>
-    <div class="note">
-      Drag <b>replay frequency</b> to move the hybrid dot. More replay = higher accuracy, higher cost.
-      The <b class="g">hybrid</b> (green) beats pure approaches by combining cheap retrieval with periodic consolidation.
+    <div class="row">
+      <label>memory size kept</label>
+      <input id="mem" type="range" min="0" max="100" step="5" value="60">
+      <span class="val" id="memVal">60%</span>
     </div>
-    <details class="theory"><summary>📖 How do I balance cost, accuracy, and forgetting?</summary>
+    <div class="howto">
+      <div class="card see"><span class="tag">👁 Seeing</span> The cost↔accuracy plane. Fixed dots are the pure strategies (<b style="color:#ff5c5c">Naive</b>, <b style="color:#5cc8ff">Retrieval-only</b>, <b style="color:#fbbf24">Replay-only</b>). The <b style="color:#6ee7a8">green Hybrid dot</b> moves as you tune the two sliders; the dashed box is the sweet spot.</div>
+      <div class="card try"><span class="tag">🎮 Try</span> Crank <b>replay frequency</b> to "daily" — accuracy ticks up but cost explodes. Drop <b>memory</b> to 0% — retrieval can't recall rare events, forgetting rises. Find a setting where the green dot sits inside the sweet-spot box with all three metrics healthy. That's the engineering decision this whole curriculum was building toward.</div>
+    </div>
+    <details class="theory"><summary>📖 How to balance the three axes in production</summary>
     <div class="tbody">
       <h4>The three axes</h4>
       <ul>
-        <li><b class="term">Cost</b> — GPU hours spent on retraining. Naive is cheap per step but needs many steps. Retrieval is free.</li>
-        <li><b class="term">Accuracy</b> — average performance across all tasks seen so far.</li>
-        <li><b class="term">Forgetting</b> — how much old-task performance dropped. Retrieval has zero forgetting; naive has lots.</li>
+        <li><b class="term">Cost</b> — GPU hours for retraining + storage for the memory. Retrieval is cheap to update; replay is expensive.</li>
+        <li><b class="term">Accuracy</b> — average performance across every task/situation seen so far.</li>
+        <li><b class="term">Forgetting</b> — how much old-task skill dropped. Retrieval ≈ zero; naive ≈ a lot.</li>
       </ul>
-      <h4>What does the <span class="btnref">replay frequency</span> slider do?</h4>
-      <p>In the hybrid system, you choose how often to run consolidation:</p>
+      <h4>What the sliders model</h4>
       <ul>
-        <li>Low frequency (rare replay) → cheap, but weights lag behind new patterns. Accuracy suffers.</li>
-        <li>High frequency (frequent replay) → accurate, but GPU bill rises.</li>
-        <li>The sweet spot depends on your data velocity and budget. Automotive systems often choose <b>quarterly</b>.</li>
+        <li><b>Replay frequency</b> — rare → cheap but weights lag; frequent → accurate but costly. Automotive often picks <b>quarterly/monthly</b>.</li>
+        <li><b>Memory size</b> — how many raw experiences you keep for retrieval. More = better rare-event recall, higher storage.</li>
       </ul>
       <h4>Why the hybrid wins</h4>
-      <p>Retrieval gives you <b>immediate</b> access to every experience (no forgetting, fast updates).
-      Periodic replay <b>compresses</b> recurring experiences into weights (generalization, no retrieval latency).
-      Together they cover both fast-changing specifics and stable core skills.</p>
+      <p>Retrieval gives immediate, no-forgetting access to specifics; periodic replay compresses recurring patterns into
+      fast, dependency-free weights. Together they dominate any single approach — the result this capstone proves.</p>
+      <h4>Your capstone question, answered</h4>
+      <p>"How do I keep fine-tuning a self-driving model as new data arrives — cheaply, accurately, without forgetting?"
+      → Retrieval for the daily stream, periodic replay-based LoRA for consolidation, frozen base for stable core skills.
+      Tune frequency and memory to your budget. Don't choose one tool; <b>compose</b> them.</p>
     </div></details>
   </div>
 
@@ -114,162 +161,254 @@
 
 <script>
 const dpr = devicePixelRatio || 1;
-function fit(c){ const r=c.getBoundingClientRect(); c.width=r.width*dpr; c.height=c.height*dpr; }
+function fit(c){ const r=c.getBoundingClientRect(); c.width=Math.max(1,r.width*dpr); c.height=Math.max(1,c.height*dpr); }
 
-// ---- Panel 1: hybrid architecture diagram ----
-const hyb = document.getElementById('hybrid'), hctx = hyb.getContext('2d'); fit(hyb);
-const WH = hyb.width, HH = hyb.height;
-let t = 0;
+// ============================================================
+// PANEL 1: hybrid architecture flow
+// ============================================================
+const hyb=document.getElementById('hybrid'), hc=hyb.getContext('2d'); fit(hyb);
+let ht=0;
+function box(ctx,x,y,w,h,col,txt,sub,dim){
+  ctx.globalAlpha=dim?0.25:1;
+  ctx.fillStyle=col; ctx.save(); ctx.globalAlpha=(dim?0.06:0.18); ctx.fillRect(x,y,w,h); ctx.restore();
+  ctx.strokeStyle=col; ctx.lineWidth=1.5*dpr; ctx.strokeRect(x,y,w,h);
+  ctx.fillStyle='#e7e9ee'; ctx.font=`${12*dpr}px sans-serif`; ctx.textAlign='center';
+  ctx.fillText(txt,x+w/2,y+h/2-2*dpr);
+  if(sub){ ctx.fillStyle='#9aa3b2'; ctx.font=`${10*dpr}px sans-serif`; ctx.fillText(sub,x+w/2,y+h/2+12*dpr); }
+  ctx.globalAlpha=1;
+}
+function flowDot(ctx,x1,y1,x2,y2,ph,col){
+  const p=((ht/120)+ph)%1; const x=x1+(x2-x1)*p, y=y1+(y2-y1)*p;
+  ctx.fillStyle=col; ctx.beginPath(); ctx.arc(x,y,3.5*dpr,0,7); ctx.fill();
+}
 function drawHybrid(){
-  hctx.clearRect(0,0,WH,HH);
-  const pad=20*dpr;
-  // boxes
-  function box(x,y,w,h,col,txt,sub){
-    hctx.fillStyle=col; hctx.globalAlpha=0.18; hctx.fillRect(x,y,w,h); hctx.globalAlpha=1;
-    hctx.strokeStyle=col; hctx.lineWidth=1.5*dpr; hctx.strokeRect(x,y,w,h);
-    hctx.fillStyle='#e7e9ee'; hctx.font=`${12*dpr}px sans-serif`; hctx.textAlign='center';
-    hctx.fillText(txt, x+w/2, y+h/2-2*dpr);
-    if(sub){ hctx.fillStyle='#9aa3b2'; hctx.font=`${10*dpr}px sans-serif`; hctx.fillText(sub, x+w/2, y+h/2+10*dpr); }
-  }
-  const bw=(WH-4*pad)/4, bh=50*dpr, y0=HH/2-bh/2;
-  // experiences
-  box(pad, y0-60*dpr, bw, bh, '#ff8a5c', 'Raw Experiences', 'real-time stream');
-  // memory
-  box(pad+bw+pad, y0-60*dpr, bw, bh, '#5cc8ff', 'Vector DB', 'experience memory');
-  // retrieval path
-  box(pad+2*(bw+pad), y0, bw, bh, '#6ee7a8', 'Retrieval', 'at inference');
-  // replay path
-  box(pad+bw+pad, y0+60*dpr, bw, bh, '#fbbf24', 'Periodic Replay', 'quarterly');
-  // LoRA
-  box(pad+2*(bw+pad), y0+60*dpr, bw, bh, '#fbbf24', 'LoRA Update', 'consolidation');
-  // model
-  box(pad+3*(bw+pad), y0, bw, bh, '#9aa3b2', 'Foundation + LoRA', 'inference');
-
+  const useR=document.getElementById('useRetrieval').checked;
+  const useP=document.getElementById('useReplay').checked;
+  const W=hyb.width,H=hyb.height; hc.clearRect(0,0,W,H);
+  const pad=16*dpr; const bw=(W-5*pad)/4, bh=46*dpr;
+  const colX=i=>pad+i*(bw+pad);
+  const yTop=H*0.16, yMid=H*0.50, yBot=H*0.80;
+  box(hc,colX(0),yMid,bw,bh,'#ff8a5c','Raw Experiences','real-time stream');
+  box(hc,colX(1),yMid,bw,bh,'#5cc8ff','Vector DB','experience memory');
+  box(hc,colX(2),yTop,bw,bh,'#6ee7a8','Retrieval','at inference',!useR);
+  box(hc,colX(2),yBot,bw,bh,'#fbbf24','Periodic Replay','consolidation',!useP);
+  box(hc,colX(3),yMid,bw,bh,'#9aa3b2','Foundation + LoRA','the car drives');
+  // connectors (lines)
+  hc.strokeStyle='#283044'; hc.lineWidth=1.5*dpr;
+  const line=(x1,y1,x2,y2)=>{ hc.beginPath(); hc.moveTo(x1,y1); hc.lineTo(x2,y2); hc.stroke(); };
+  line(colX(0)+bw,yMid+bh/2, colX(1),yMid+bh/2);
+  if(useR){ line(colX(1)+bw,yMid+bh/2, colX(2),yTop+bh/2); line(colX(2)+bw,yTop+bh/2, colX(3),yMid+bh/2); }
+  if(useP){ line(colX(1)+bw,yMid+bh/2, colX(2),yBot+bh/2); line(colX(2)+bw,yBot+bh/2, colX(3),yMid+bh/2); }
   // animated dots
-  const p = (t%120)/120;
-  function dot(x1,y1,x2,y2,ph,col){
-    const k=(p+ph)%1;
-    const x=x1+(x2-x1)*k, y=y1+(y2-y1)*k;
-    hctx.fillStyle=col; hctx.beginPath(); hctx.arc(x,y,3*dpr,0,7); hctx.fill();
+  flowDot(hc,colX(0)+bw,yMid+bh/2,colX(1),yMid+bh/2,0,'#ff8a5c');
+  if(useR){ flowDot(hc,colX(1)+bw,yMid+bh/2,colX(2),yTop+bh/2,0.25,'#5cc8ff');
+            flowDot(hc,colX(2)+bw,yTop+bh/2,colX(3),yMid+bh/2,0.5,'#6ee7a8'); }
+  if(useP){ flowDot(hc,colX(1)+bw,yMid+bh/2,colX(2),yBot+bh/2,0.4,'#5cc8ff');
+            flowDot(hc,colX(2)+bw,yBot+bh/2,colX(3),yMid+bh/2,0.7,'#fbbf24'); }
+  // status
+  hc.fillStyle='#c4ccda'; hc.font=`${11*dpr}px sans-serif`; hc.textAlign='center';
+  let msg;
+  if(useR&&useP) msg='✅ Full hybrid: instant recall + periodic consolidation. Robust and cheap.';
+  else if(useR&&!useP) msg='⚠ Retrieval only: fast updates, but nothing consolidates into weights — fully DB-dependent.';
+  else if(!useR&&useP) msg='⚠ Replay only: weights stay current, but no instant recall of brand-new rare events.';
+  else msg='❌ Neither path: the car runs on the frozen base alone — no new learning at all.';
+  hc.fillText(msg, W/2, H-8*dpr);
+  ht++; requestAnimationFrame(drawHybrid);
+}
+// the draw loop reads the checkbox state each frame, so toggling takes effect immediately
+
+// ============================================================
+// PANEL 2: replay vs retrieval event stream
+// ============================================================
+const vsC=document.getElementById('vs'), vctx=vsC.getContext('2d'); fit(vsC);
+let ev=null; // {kind:'repeat'|'rare', t}
+let replayWeight=0.5;
+function feed(kind){ ev={kind, t:0}; }
+function drawVs(){
+  const W=vsC.width,H=vsC.height; vctx.clearRect(0,0,W,H);
+  const dbDown=document.getElementById('dbDown').checked;
+  const midX=W/2;
+  // divider
+  vctx.strokeStyle='#283044'; vctx.lineWidth=1*dpr; vctx.beginPath(); vctx.moveTo(midX,30*dpr); vctx.lineTo(midX,H-10*dpr); vctx.stroke();
+  // headers
+  vctx.font=`${12*dpr}px sans-serif`; vctx.textAlign='center';
+  vctx.fillStyle='#6ee7a8'; vctx.fillText('REPLAY car (weights)', midX/2, 18*dpr);
+  vctx.fillStyle='#5cc8ff'; vctx.fillText('RETRIEVAL car (DB lookup)', midX+midX/2, 18*dpr);
+  // LEFT: weight bar
+  const barX=40*dpr, barY=H*0.4, barW=midX-80*dpr, barH=16*dpr;
+  vctx.strokeStyle='#6ee7a8'; vctx.lineWidth=1.5*dpr; vctx.strokeRect(barX,barY,barW,barH);
+  vctx.fillStyle='#6ee7a8'; vctx.fillRect(barX,barY,barW*replayWeight,barH);
+  vctx.fillStyle='#9aa3b2'; vctx.font=`${10*dpr}px sans-serif`;
+  vctx.fillText('learned weight (set during training)', barX+barW/2, barY-8*dpr);
+  // RIGHT: memory rows
+  const rows=5; const rx=midX+30*dpr, rw=midX-70*dpr, rh=18*dpr, ry0=H*0.30;
+  for(let i=0;i<rows;i++){
+    const y=ry0+i*(rh+6*dpr);
+    const hit = ev && ev.t>0.6 && ((ev.kind==='rare'&&i===3)||(ev.kind==='repeat'&&i===1)) && !dbDown;
+    vctx.fillStyle = hit?'#16324a':'#0e1118';
+    vctx.strokeStyle = hit?'#5cc8ff':(dbDown?'#3a2030':'#283044');
+    vctx.lineWidth=hit?2*dpr:1*dpr;
+    vctx.fillRect(rx,y,rw,rh); vctx.strokeRect(rx,y,rw,rh);
   }
-  // exp -> db
-  dot(pad+bw, y0-60*dpr+bh/2, pad+bw+pad, y0-60*dpr+bh/2, 0, '#ff8a5c');
-  // db -> retrieval
-  dot(pad+2*bw+pad, y0-60*dpr+bh/2, pad+2*(bw+pad)+bw/2, y0, 0.2, '#5cc8ff');
-  // db -> replay
-  dot(pad+2*bw+pad, y0-60*dpr+bh/2, pad+bw+pad+bw/2, y0+60*dpr, 0.4, '#5cc8ff');
-  // replay -> LoRA
-  dot(pad+bw+pad+bw, y0+60*dpr+bh/2, pad+2*(bw+pad)+bw/2, y0+60*dpr, 0.6, '#fbbf24');
-  // LoRA -> model
-  dot(pad+2*(bw+pad)+bw, y0+60*dpr+bh/2, pad+3*(bw+pad), y0+bh/2, 0.8, '#fbbf24');
-  // retrieval -> model
-  dot(pad+2*(bw+pad)+bw, y0+bh/2, pad+3*(bw+pad), y0+bh/2, 0.5, '#6ee7a8');
-
-  t++;
-  requestAnimationFrame(drawHybrid);
+  vctx.fillStyle=dbDown?'#ff5c5c':'#9aa3b2'; vctx.font=`${10*dpr}px sans-serif`;
+  vctx.fillText(dbDown?'vector DB OFFLINE':'vector DB (5 stored episodes)', rx+rw/2, ry0-8*dpr);
+  // event animation
+  if(ev){
+    ev.t=Math.min(1, ev.t+0.025);
+    const col = ev.kind==='rare'?'#ff8a5c':'#fbbf24';
+    // drop into both lanes
+    const y=18*dpr+(H*0.30-18*dpr)*Math.min(1,ev.t*1.4);
+    vctx.fillStyle=col; vctx.textAlign='center'; vctx.font=`${11*dpr}px sans-serif`;
+    vctx.fillText(ev.kind==='rare'?'🦌 moose (rare)':'🕳 pothole (common)', midX, 30*dpr);
+    // when arrived, nudge replay weight for common events
+    if(ev.t>=1 && !ev.done){
+      ev.done=true;
+      if(ev.kind==='repeat') replayWeight=Math.min(1, replayWeight+0.06);
+    }
+    if(ev.t>=1){
+      // verdicts
+      vctx.font=`${11*dpr}px sans-serif`;
+      const repGood = ev.kind==='repeat';
+      vctx.fillStyle=repGood?'#6ee7a8':'#ff8a5c'; vctx.textAlign='center';
+      vctx.fillText(repGood?'✓ handled from generalized weights':'~ shaky (never trained on this)', midX/2, H-10*dpr);
+      const retGood = !dbDown;
+      vctx.fillStyle=retGood?'#5cc8ff':'#ff5c5c';
+      vctx.fillText(retGood?(ev.kind==='rare'?'✓ exact match retrieved':'✓ found similar episode'):'✗ DB down — no answer', midX+midX/2, H-10*dpr);
+    }
+  }
+  requestAnimationFrame(drawVs);
 }
-drawHybrid();
 
-// ---- Panel 2: replay vs retrieval comparison ----
-const cmp = document.getElementById('compare'), cctx = cmp.getContext('2d'); fit(cmp);
-const WC = cmp.width, HC = cmp.height;
-let cmpMode = 'replay';
-function setMode(m){ cmpMode=m;
-  document.getElementById('btnReplay').classList.toggle('ghost', m!=='replay');
-  document.getElementById('btnRetrieval').classList.toggle('ghost', m!=='retrieval');
-  document.getElementById('compareNote').innerHTML = m==='replay'
-    ? '<b>Replay</b> acts during <b>training</b>. It changes weights. High GPU cost, low inference cost, strong generalization.'
-    : '<b>Retrieval</b> acts during <b>inference</b>. Weights stay frozen. Zero training cost, medium inference cost, excellent recall of rare events.';
-  drawCompare();
+// ============================================================
+// PANEL 3: memory funnel
+// ============================================================
+const fnC=document.getElementById('funnel'), fc=fnC.getContext('2d'); fit(fnC);
+const STAGES=[
+  {label:'Long-term memory', n:'100M', col:'#5cc8ff'},
+  {label:'Vector search', n:'100', col:'#6ee7a8'},
+  {label:'Reranker', n:'10', col:'#fbbf24'},
+  {label:'Summarizer → context', n:'3 lessons', col:'#ff8a5c'},
+];
+let fq=null; // {t}
+function runFunnel(){ fq={t:0}; }
+function drawFunnel(){
+  const W=fnC.width,H=fnC.height; fc.clearRect(0,0,W,H);
+  const pad=16*dpr; const n=STAGES.length;
+  const rowH=(H-2*pad)/n;
+  for(let i=0;i<n;i++){
+    const s=STAGES[i];
+    const w=W*(0.9 - i*0.20); const x=(W-w)/2; const y=pad+i*rowH+6*dpr; const h=rowH-12*dpr;
+    const reached = fq && fq.t> i/n;
+    fc.fillStyle=reached?s.col+'33':'#0e1118';
+    fc.strokeStyle=reached?s.col:'#283044'; fc.lineWidth=reached?2*dpr:1*dpr;
+    fc.fillRect(x,y,w,h); fc.strokeRect(x,y,w,h);
+    fc.fillStyle='#e7e9ee'; fc.font=`${12*dpr}px sans-serif`; fc.textAlign='center';
+    fc.fillText(s.label, W/2, y+h/2-1*dpr);
+    fc.fillStyle=s.col; fc.font=`bold ${12*dpr}px sans-serif`;
+    fc.fillText(s.n, W/2, y+h/2+15*dpr);
+    // arrow
+    if(i<n-1){ fc.strokeStyle='#3a4a66'; fc.lineWidth=1.5*dpr;
+      fc.beginPath(); fc.moveTo(W/2,y+h); fc.lineTo(W/2,y+h+6*dpr); fc.stroke(); }
+  }
+  // query dot falling
+  if(fq){
+    fq.t=Math.min(1, fq.t+0.012);
+    const y=pad+fq.t*(H-2*pad);
+    fc.fillStyle='#e7e9ee'; fc.beginPath(); fc.arc(W/2 + Math.sin(fq.t*20)*6*dpr, y, 4*dpr,0,7); fc.fill();
+    if(fq.t>=1){ fc.fillStyle='#ff8a5c'; fc.font=`${11*dpr}px sans-serif`; fc.textAlign='center';
+      fc.fillText('only 3 distilled lessons reach the model', W/2, H-4*dpr); }
+  }
+  requestAnimationFrame(drawFunnel);
 }
-function drawCompare(){
-  cctx.clearRect(0,0,WC,HC);
-  const pad=20*dpr;
-  const cw=(WC-2*pad)/2, ch=HC-60*dpr;
-  // left: replay
-  cctx.fillStyle='#0e1118'; cctx.strokeStyle=cmpMode==='replay'?'#6ee7a8':'#283044'; cctx.lineWidth=cmpMode==='replay'?2:1;
-  cctx.fillRect(pad, 40*dpr, cw, ch); cctx.strokeRect(pad, 40*dpr, cw, ch);
-  cctx.fillStyle=cmpMode==='replay'?'#6ee7a8':'#6b7689'; cctx.font=`${13*dpr}px sans-serif`; cctx.textAlign='center';
-  cctx.fillText('REPLAY', pad+cw/2, 30*dpr);
-  // right: retrieval
-  cctx.fillStyle='#0e1118'; cctx.strokeStyle=cmpMode==='retrieval'?'#5cc8ff':'#283044'; cctx.lineWidth=cmpMode==='retrieval'?2:1;
-  cctx.fillRect(pad+cw+10*dpr, 40*dpr, cw, ch); cctx.strokeRect(pad+cw+10*dpr, 40*dpr, cw, ch);
-  cctx.fillStyle=cmpMode==='retrieval'?'#5cc8ff':'#6b7689';
-  cctx.fillText('RETRIEVAL', pad+cw+10*dpr+cw/2, 30*dpr);
-  // content
-  const attrs = [
-    ['When','During training','During inference'],
-    ['Weights change','Yes','No'],
-    ['GPU cost','High','Low'],
-    ['Inference cost','Low','Medium'],
-    ['Forgetting','Low (with buffer)','None'],
-    ['Updates','Slow','Immediate'],
-    ['Rare events','Poor recall','Excellent'],
-    ['Generalization','Strong','Weak'],
-  ];
-  cctx.font=`${11*dpr}px sans-serif`; cctx.textAlign='left';
-  attrs.forEach((row,i)=>{
-    const y=55*dpr+i*22*dpr;
-    cctx.fillStyle='#9aa3b2'; cctx.fillText(row[0], pad+8*dpr, y);
-    cctx.fillStyle=cmpMode==='replay'?'#e7e9ee':'#6b7689'; cctx.fillText(row[1], pad+8*dpr, y+12*dpr);
-    cctx.fillStyle=cmpMode==='retrieval'?'#e7e9ee':'#6b7689'; cctx.fillText(row[2], pad+cw+18*dpr, y+12*dpr);
-  });
-}
-drawCompare();
 
-// ---- Panel 3: trade-off space ----
-const to = document.getElementById('tradeoff'), tctx = to.getContext('2d'); fit(to);
-const WT = to.width, HT = to.height;
+// ============================================================
+// PANEL 4: trade-off simulator
+// ============================================================
+const toC=document.getElementById('tradeoff'), tc=toC.getContext('2d'); fit(toC);
+function freqLabel(f){ return f<20?'rarely':f<45?'quarterly':f<70?'monthly':f<90?'weekly':'daily'; }
+function computeHybrid(){
+  const f=+document.getElementById('freq').value/100;   // 0..1
+  const m=+document.getElementById('mem').value/100;    // 0..1
+  // accuracy: replay frequency lifts generalization, memory lifts rare-event recall
+  const acc=0.55 + 0.28*f + 0.15*m - 0.05*f*m;          // ~0.55..0.95
+  // forgetting: memory kills it (retrieval), replay freq helps a bit
+  const forget=Math.max(0, 0.35*(1-m) + 0.10*(1-f));    // 0..~0.45
+  // cost: replay frequency dominates (GPU), memory adds storage
+  const cost=0.1 + 0.75*f*f + 0.25*m;                   // 0..~1.1
+  return {f,m,acc:Math.min(0.97,acc),forget,cost:Math.min(1,cost)};
+}
 function drawTradeoff(){
-  const freq = +document.getElementById('freq').value;
-  const label = freq<30?'low':freq<70?'medium':'high';
-  document.getElementById('freqVal').textContent = label;
-  tctx.clearRect(0,0,WT,HT);
-  const pad=36*dpr, bw=WT-2*pad, bh=HT-2*pad;
-  // axes
-  tctx.strokeStyle='#283044'; tctx.lineWidth=1*dpr;
-  tctx.beginPath(); tctx.moveTo(pad, pad); tctx.lineTo(pad, HT-pad); tctx.lineTo(WT-pad, HT-pad); tctx.stroke();
-  tctx.fillStyle='#9aa3b2'; tctx.font=`${11*dpr}px sans-serif`; tctx.textAlign='center';
-  tctx.fillText('cost (training steps + memory size)', WT/2, HT-6*dpr);
-  tctx.save(); tctx.translate(12*dpr, HT/2); tctx.rotate(-Math.PI/2); tctx.fillText('accuracy (lower avg loss)', 0, 0); tctx.restore();
-  // fixed points
-  const points = [
-    {name:'Naive', x:0.15, y:0.75, col:'#ff5c5c'},
-    {name:'Retrieval-only', x:0.05, y:0.55, col:'#5cc8ff'},
-    {name:'Replay-only', x:0.9, y:0.25, col:'#fbbf24'},
+  const f=+document.getElementById('freq').value, m=+document.getElementById('mem').value;
+  document.getElementById('freqVal').textContent=freqLabel(f);
+  document.getElementById('memVal').textContent=m+'%';
+  const W=toC.width,H=toC.height; tc.clearRect(0,0,W,H);
+  const padL=40*dpr,padR=14*dpr,padT=14*dpr,padB=30*dpr;
+  const gw=W-padL-padR, gh=H-padT-padB;
+  // axes: x=cost, y=accuracy
+  tc.strokeStyle='#283044'; tc.lineWidth=1*dpr;
+  tc.beginPath(); tc.moveTo(padL,padT); tc.lineTo(padL,H-padB); tc.lineTo(W-padR,H-padB); tc.stroke();
+  tc.fillStyle='#9aa3b2'; tc.font=`${10*dpr}px sans-serif`; tc.textAlign='center';
+  tc.fillText('cost (GPU + storage) →', padL+gw/2, H-8*dpr);
+  tc.save(); tc.translate(12*dpr,padT+gh/2); tc.rotate(-Math.PI/2); tc.fillText('accuracy →',0,0); tc.restore();
+  const X=(cost)=>padL+cost*gw, Y=(acc)=>H-padB-(acc-0.4)/0.6*gh;
+  // sweet spot box: low-ish cost, high acc
+  tc.strokeStyle='#2f6b4a'; tc.setLineDash([4*dpr,4*dpr]); tc.lineWidth=1*dpr;
+  const sx=X(0.15), sy=Y(0.95), sw=X(0.55)-sx, sh=Y(0.80)-sy;
+  tc.strokeRect(sx,sy,sw,sh); tc.setLineDash([]);
+  tc.fillStyle='#2f6b4a'; tc.textAlign='left'; tc.fillText('sweet spot', sx+4*dpr, sy+12*dpr);
+  // fixed strategies
+  const fixed=[
+    {name:'Naive', cost:0.18, acc:0.55, col:'#ff5c5c'},
+    {name:'Retrieval-only', cost:0.10, acc:0.66, col:'#5cc8ff'},
+    {name:'Replay-only', cost:0.92, acc:0.88, col:'#fbbf24'},
   ];
-  // hybrid point moves with frequency
-  // freq 0 -> near retrieval, freq 100 -> near replay
-  const hyX = 0.1 + freq/100 * 0.7;
-  const hyY = 0.5 - freq/100 * 0.3;
-  points.push({name:'Hybrid', x:hyX, y:hyY, col:'#6ee7a8'});
-  // draw points
-  points.forEach(p=>{
-    const x=pad+bw*p.x, y=pad+bh*p.y;
-    tctx.fillStyle=p.col; tctx.beginPath(); tctx.arc(x,y,5*dpr,0,7); tctx.fill();
-    tctx.fillStyle=p.col; tctx.font=`${11*dpr}px sans-serif`; tctx.textAlign='left';
-    tctx.fillText(p.name, x+8*dpr, y+4*dpr);
-  });
-  // ideal zone
-  tctx.strokeStyle='#2f6b4a'; tctx.setLineDash([3*dpr,3*dpr]); tctx.lineWidth=1*dpr;
-  tctx.strokeRect(pad+bw*0.1, pad+bh*0.1, bw*0.5, bh*0.35); tctx.setLineDash([]);
-  tctx.fillStyle='#2f6b4a'; tctx.font=`${10*dpr}px sans-serif`; tctx.textAlign='left';
-  tctx.fillText('sweet spot', pad+bw*0.12, pad+bh*0.14);
+  fixed.forEach(p=>{ tc.fillStyle=p.col; tc.beginPath(); tc.arc(X(p.cost),Y(p.acc),5*dpr,0,7); tc.fill();
+    tc.fillStyle=p.col; tc.font=`${10.5*dpr}px sans-serif`; tc.textAlign='left'; tc.fillText(p.name, X(p.cost)+8*dpr, Y(p.acc)+4*dpr); });
+  // hybrid dot
+  const hyb=computeHybrid();
+  const hx=X(hyb.cost), hy=Y(hyb.acc);
+  tc.fillStyle='#6ee7a8'; tc.beginPath(); tc.arc(hx,hy,7*dpr,0,7); tc.fill();
+  tc.strokeStyle='#0f1117'; tc.lineWidth=2*dpr; tc.stroke();
+  tc.fillStyle='#6ee7a8'; tc.font=`bold ${11*dpr}px sans-serif`; tc.textAlign='left'; tc.fillText('Hybrid (you)', hx+9*dpr, hy+4*dpr);
+  // metrics
+  document.getElementById('tAcc').textContent=Math.round(hyb.acc*100)+'%';
+  document.getElementById('tForget').textContent=Math.round(hyb.forget*100)+'%';
+  document.getElementById('tForget').style.color=hyb.forget>0.3?'#ff5c5c':hyb.forget>0.12?'#ff8a5c':'#6ee7a8';
+  const dollars=Math.round(hyb.cost*40)+ 2;
+  document.getElementById('tCost').textContent='$'+dollars+'k';
+  const inBox = hyb.cost>=0.15&&hyb.cost<=0.55&&hyb.acc>=0.80;
+  document.getElementById('tVerd').textContent = inBox?'✅ balanced':hyb.cost>0.55?'💸 too costly':hyb.acc<0.80?'📉 underfit':'tune more';
+  document.getElementById('tVerd').style.color = inBox?'#6ee7a8':'#fbbf24';
 }
-document.getElementById('freq').oninput = drawTradeoff;
-drawTradeoff();
+document.getElementById('freq').oninput=drawTradeoff;
+document.getElementById('mem').oninput=drawTradeoff;
 
-window.addEventListener('resize', ()=>location.reload());
+// ============================================================
+// init
+// ============================================================
+function initAll(){
+  fit(hyb); fit(vsC); fit(fnC); fit(toC);
+  drawTradeoff();
+}
+initAll();
+drawHybrid(); drawVs(); drawFunnel();
+window.addEventListener('resize', ()=>{ setTimeout(initAll,120); });
 </script>
 
 <script>
 window.TUTOR_CONFIG = {
   caseTitle: "Case 07 · Capstone: Streaming Self-Driving Updates",
-  context: "Interactive capstone on hybrid memory architectures for continual learning. Panel 1: animated flow diagram of a production hybrid system — raw experiences go to a vector DB, which feeds both real-time retrieval and periodic replay-based LoRA consolidation. Panel 2: side-by-side comparison of replay vs retrieval on when they act, cost, and forgetting. Panel 3: cost-accuracy trade-off scatter plot where the hybrid system's position moves with replay frequency. Core concepts: hybrid architecture, memory hierarchy, consolidation, production trade-offs, and the neuroscience-inspired pipeline (hippocampus-like retrieval → cortex-like weights).",
+  context: "Interactive capstone on hybrid memory for continual learning in a self-driving car. "
+    + "Panel 1: an animated flow diagram (raw experiences → vector DB → retrieval path + periodic-replay path → foundation+LoRA). Checkboxes disable the retrieval or replay path and a status line explains the consequence of each. "
+    + "Panel 2: two cars (Replay vs Retrieval) handle the same event; sending a 'common pothole' or 'rare moose' animates a weight bar nudging (replay) vs a memory row lighting up (retrieval), and a 'DB offline' checkbox makes retrieval fail while replay's baked-in weights still drive. "
+    + "Panel 3: the memory funnel — a query falls through 100M → vector search → 100 → rerank → 10 → summarize → 3 lessons, showing why retrieval is staged and how progressive abstraction compresses experiences into rules. "
+    + "Panel 4: a live cost-vs-accuracy simulator with sliders for replay frequency and memory size; a green Hybrid dot moves relative to fixed Naive/Retrieval-only/Replay-only dots, with live metric cards for accuracy, forgetting, monthly cost, and a verdict, plus a dashed sweet-spot box. "
+    + "Core concepts: hybrid architecture, hippocampus→cortex consolidation, replay vs retrieval trade-offs, memory hierarchy, and balancing cost/accuracy/forgetting — the answer to the course's capstone question.",
   suggestions: [
     "Why not use retrieval for everything?",
     "How often should I run consolidation replay in production?",
-    "What goes into the vector DB vs what gets compressed into weights?"
+    "What goes in the vector DB vs what gets compressed into weights?",
+    "How do I read the cost-vs-accuracy plot in Panel 4?"
   ]
 };
 </script>

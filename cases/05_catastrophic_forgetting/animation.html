@@ -41,10 +41,14 @@
       <span class="val" id="stepVal">0</span>
       <button id="runAnim">▶ Animate</button>
     </div>
-    <div class="note">
-      <b class="g">Green dots</b> = Task A (old knowledge). <b class="k" style="color:#5cc8ff">Blue dots</b> = Task B (new information).
-      The <b>curve</b> is the model's prediction. Drag the slider: watch the curve leave the green dots behind.
-      The vertical lines are <b>residuals</b> — how wrong the model is on old data.
+    <div class="howto">
+      <div class="card see"><span class="tag">👁 What you're seeing</span> This is a <b>real</b> trained network plotted as a curve.
+        <b style="color:#6ee7a8">Green dots</b> = Task A (the car's old skill, e.g. sunny roads).
+        <b style="color:#5cc8ff">Blue dots</b> = Task B (new data, e.g. snowy roads). The white <b>curve</b> is what the model predicts;
+        the orange <b>residual lines</b> show how wrong it now is on the old green data.</div>
+      <div class="card try"><span class="tag">🎮 Try this</span> Drag <b>steps trained on Task B</b> from 0 → 800 (or press <b>Animate</b>) and watch the curve
+        peel off the green dots to chase the blue ones. Watch the three metric cards on the right: <b>Error on A</b> climbs while
+        <b>Error on B</b> falls — that rising A-error <i>is</i> catastrophic forgetting.</div>
     </div>
     <details class="theory"><summary>📖 Why does training on B destroy performance on A?</summary>
     <div class="tbody">
@@ -98,9 +102,11 @@
       <input id="simSlider" type="range" min="0" max="8" step="1" value="0">
       <span class="val" id="simVal">0</span>
     </div>
-    <div class="note">
-      Same slider controls all three. When the new task is <b>similar</b> to the old one, forgetting is mild
-      (the optima overlap). When tasks are <b>very different</b>, the old knowledge is almost completely erased.
+    <div class="howto">
+      <div class="card see"><span class="tag">👁 Seeing</span> The same forgetting experiment run three times, side by side — only the <b>gap between the
+        old and new task</b> changes (phase diff 0.3 → 1.2 → 2.4). Left = nearly the same task; right = a totally different one.</div>
+      <div class="card try"><span class="tag">🎮 Try</span> Drag the slider and compare the <b>forget</b> numbers under each plot. Lesson: fine-tuning a sunny-road
+        car on <i>rainy urban</i> data (similar) forgets little; on <i>snowy mountain passes</i> (very different) it forgets almost everything.</div>
     </div>
     <details class="theory"><summary>📖 Why does task similarity matter?</summary>
     <div class="tbody">
@@ -148,6 +154,14 @@
       The heatmap shows the same 8×8 slice of the first layer at the current training step.
       Bright colors = large magnitude. Watch colors shift as B-training rewires the network.
       The trajectory shows that <b>every weight</b> that matters for A is being overwritten to serve B.
+    </div>
+    <div class="howto">
+      <div class="card see"><span class="tag">👁 Seeing</span> Panels 1–2 showed the <i>symptom</i> (predictions get worse). This shows the <i>cause</i>:
+        the actual numbers inside the model. Each square is one weight — <b style="color:#ff5c5c">red</b> positive, <b style="color:#5cc8ff">blue</b> negative.
+        The right plot tracks one weight as training proceeds; <b>Total drift</b> sums how far the whole matrix moved.</div>
+      <div class="card try"><span class="tag">🎮 Try</span> Click different cells in the heatmap to follow individual weights, then drag the Task-B slider.
+        The dashed <b>initial</b> line is where each weight started — see how far it drifts. There is no separate "memory" for A;
+        the old skill lived in exactly these numbers, and they're being overwritten.</div>
     </div>
     <details class="theory"><summary>📖 What does weight drift tell us?</summary>
     <div class="tbody">
