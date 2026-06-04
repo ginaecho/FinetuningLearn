@@ -112,9 +112,74 @@
     </div></details>
   </div>
 
-  <!-- ===== PANEL 2: nn.Sequential ===== -->
+  <!-- ===== PANEL 2: the matrix multiply behind nn.Linear ===== -->
+  <div class="panel full">
+    <h2>2 · The matrix algebra behind nn.Linear — dimensions must line up</h2>
+    <canvas id="matmul" height="360"></canvas>
+    <div class="row">
+      <label>batch (m)</label>
+      <input id="mm" type="range" min="1" max="4" step="1" value="3">
+      <span class="val" id="mmv">3</span>
+      <label style="min-width:90px">in_features (k)</label>
+      <input id="mk" type="range" min="1" max="4" step="1" value="2">
+      <span class="val" id="mkv">2</span>
+      <label style="min-width:95px">out_features (n)</label>
+      <input id="mn" type="range" min="1" max="5" step="1" value="4">
+      <span class="val" id="mnv">4</span>
+    </div>
+    <div class="btn-row">
+      <button id="mmAnim">▶ Animate the multiply</button>
+      <button id="mmBreak">Break the shape (mismatch)</button>
+      <button id="mmReset">Reset</button>
+    </div>
+    <div class="stat" id="mmstat"></div>
+    <div class="note">
+      <code>nn.Linear(k, n)</code> computes <span class="formula">y = x @ Wᵀ + b</span>. The inputs are matrices:
+      <b class="a">x</b> is <code>(m, k)</code>, the weight <b style="color:#9f7aea">Wᵀ</b> is <code>(k, n)</code>.
+      For the multiply to work, x's <b>last dim</b> (k) must equal Wᵀ's <b>first dim</b> (k) — the two
+      <b class="k">inner</b> numbers. The result <b class="g">y</b> is <code>(m, n)</code> — the two
+      <b>outer</b> numbers. Hit <b>Break the shape</b> to see the mismatch error.
+    </div>
+
+    <details class="theory"><summary>📖 The matrix-multiply rule, step by step</summary>
+    <div class="tbody">
+      <h4>The shape rule (memorize this one line)</h4>
+      <p style="text-align:center"><span class="formula">(m, k) @ (k, n) = (m, n)</span></p>
+      <p>To multiply two matrices, the <b class="term">inner dimensions must match</b> (both k here). They
+      "cancel," leaving the <b class="term">outer dimensions</b> (m and n) as the result's shape.</p>
+      <ul>
+        <li><span class="formula">(3, 2) @ (2, 4) = (3, 4)</span> ✓ — inner 2 = 2</li>
+        <li><span class="formula">(3, 2) @ (3, 4)</span> ✗ — inner 2 ≠ 3, RuntimeError</li>
+      </ul>
+
+      <h4>How one output cell is computed (the dot product)</h4>
+      <p>Each cell of the result is a <b class="term">dot product</b>: take row <code>i</code> of the left
+      matrix and column <code>j</code> of the right matrix, multiply element-by-element, and add them up.</p>
+      <p style="text-align:center"><span class="formula">y[i,j] = Σ x[i,:] · Wᵀ[:,j]</span></p>
+      <p>That's why the inner dims must match — the row and the column need the <i>same length</i> to pair up.
+      Watch the animation: the cyan row and purple column light up, and their products sum into one green cell.</p>
+
+      <h4>Mapping to nn.Linear(1, 64)</h4>
+      <p>Your data <code>x</code> after <code>unsqueeze(1)</code> is <code>(batch, 1)</code> — so k = 1.
+      The layer's weight <b>W</b> is <code>(64, 1)</code>, and <b>Wᵀ</b> is <code>(1, 64)</code> — so k = 1, n = 64.</p>
+      <p style="text-align:center"><span class="formula">(batch, 1) @ (1, 64) = (batch, 64)</span> ✓</p>
+      <p>If you forgot the unsqueeze and x was <code>(batch,)</code> with no second dimension, there's no
+      "last dim = 1" to line up against Wᵀ's first dim — that's the crash you saw in Panel 1.</p>
+
+      <h4>What is "+ b" (the bias)?</h4>
+      <p>After the multiply, a <b class="term">bias</b> vector of shape <code>(n,)</code> is added to every
+      row. It shifts each output. It's broadcast across all m rows — same bias for every sample.</p>
+
+      <h4>Why "echelon" / dimensions matter for you</h4>
+      <p>Reading shapes as <code>(m, k) @ (k, n) = (m, n)</code> is the fastest way to debug any model. When an
+      LLM agent writes code and you get a shape error, you scan for the two inner numbers that don't match —
+      that's 90% of deep-learning debugging.</p>
+    </div></details>
+  </div>
+
+  <!-- ===== PANEL 3: nn.Sequential ===== -->
   <div class="panel">
-    <h2>2 · Inside nn.Sequential: layers and activations</h2>
+    <h2>3 · Inside nn.Sequential: layers and activations</h2>
     <canvas id="netw" height="260"></canvas>
     <div class="row">
       <label>Input value x</label>
@@ -164,7 +229,7 @@
 
   <!-- ===== PANEL 3: The Training Loop ===== -->
   <div class="panel full">
-    <h2>3 · The training loop: forward → loss → backward → update</h2>
+    <h2>4 · The training loop: forward → loss → backward → update</h2>
     <canvas id="loop" height="200"></canvas>
     <div class="btn-row">
       <button onclick="trainStep(1)">Train 1 step</button>
@@ -424,6 +489,217 @@ function drawTensor(){
   document.getElementById('shapenote').innerHTML = notes[curMode] || '';
 }
 drawTensor();
+
+// ---- PANEL 2: the matrix multiply behind nn.Linear ----
+const mc = document.getElementById('matmul'), mx = mc.getContext('2d');
+fit(mc);
+let mmBroken = false;
+let mmAnimating = false, mmCell = -1, mmProg = 0, mmRAF = null;
+const mmEl = document.getElementById('mm'), mkEl = document.getElementById('mk'), mnEl = document.getElementById('mn');
+// deterministic matrix values
+const xVal = (i,j) => +((Math.sin(i*2.3 + j*1.7) * 1.5)).toFixed(1);
+const wVal = (i,j) => +((Math.cos(i*1.9 + j*0.7) * 1.2)).toFixed(1);
+
+function mmDims(){
+  const m = +mmEl.value, k = +mkEl.value, n = +mnEl.value;
+  const kx = mmBroken ? Math.min(k + 2, 6) : k;   // x's column count
+  return {m, k, n, kx, valid: kx === k};
+}
+
+function drawGrid(ox, oy, rows, cols, cell, valFn, opt){
+  opt = opt || {};
+  for(let i = 0; i < rows; i++){
+    for(let j = 0; j < cols; j++){
+      const x = ox + j*cell, y = oy + i*cell;
+      let bg = opt.bg || '#141a26';
+      // highlight active row/col
+      if(opt.hiRow != null && i === opt.hiRow) bg = opt.rowColor || '#13344a';
+      if(opt.hiCol != null && j === opt.hiCol) bg = opt.colColor || '#2a1f44';
+      if(opt.hiRow != null && opt.hiCol != null && i === opt.hiRow && j === opt.hiCol) bg = '#1f3a2a';
+      // filled output cells
+      const isFilled = opt.filled && opt.filled.has(i + ',' + j);
+      if(isFilled) bg = '#16331f';
+      mx.fillStyle = bg;
+      mx.fillRect(x, y, cell-2*dpr, cell-2*dpr);
+      mx.strokeStyle = opt.border || '#2f3a52';
+      mx.lineWidth = 1*dpr;
+      mx.strokeRect(x, y, cell-2*dpr, cell-2*dpr);
+      // value text
+      if(valFn && (!opt.onlyFilled || isFilled || (opt.activeCell && opt.activeCell[0]===i && opt.activeCell[1]===j))){
+        mx.fillStyle = opt.textColor || '#c4ccda';
+        mx.font = `${Math.min(12, cell/dpr*0.38)*dpr}px monospace`;
+        mx.textAlign = 'center';
+        mx.fillText(valFn(i,j), x + (cell-2*dpr)/2, y + (cell-2*dpr)/2 + 4*dpr);
+      } else if(valFn && opt.onlyFilled){
+        mx.fillStyle = '#39435a';
+        mx.font = `${10*dpr}px monospace`; mx.textAlign = 'center';
+        mx.fillText('?', x + (cell-2*dpr)/2, y + (cell-2*dpr)/2 + 4*dpr);
+      }
+    }
+  }
+}
+
+function drawMatmul(){
+  const W = mc.width, H = mc.height;
+  mx.clearRect(0, 0, W, H);
+  const {m, k, n, kx, valid} = mmDims();
+  document.getElementById('mmv').textContent = m;
+  document.getElementById('mkv').textContent = k;
+  document.getElementById('mnv').textContent = n;
+
+  // cell size fits everything: columns across = kx + n + n, plus symbols
+  const totalCols = kx + n + n;
+  const cell = Math.min(38*dpr, (W - W*0.08 - 2*60*dpr) / totalCols);
+  const symGap = 56*dpr;
+  const cy = H * 0.40;
+
+  const xH = m*cell, wH = k*cell, yH = m*cell;
+  const ox1 = W*0.04;
+  const oy1 = cy - xH/2;
+  const ox2 = ox1 + kx*cell + symGap;
+  const oy2 = cy - wH/2;
+  const ox3 = ox2 + n*cell + symGap;
+  const oy3 = cy - yH/2;
+
+  // active cell for animation
+  let ai = -1, aj = -1;
+  if(mmAnimating && mmCell >= 0){ ai = Math.floor(mmCell / n); aj = mmCell % n; }
+
+  // ----- x matrix -----
+  drawGrid(ox1, oy1, m, kx, cell, xVal, {
+    hiRow: (valid && ai>=0) ? ai : null,
+    rowColor: '#13344a', border: valid ? '#5cc8ff' : '#ef4444'
+  });
+  // label
+  mx.fillStyle = '#5cc8ff'; mx.font = `bold ${12*dpr}px monospace`; mx.textAlign = 'center';
+  mx.fillText('x', ox1 + kx*cell/2, oy1 - 24*dpr);
+  mx.fillStyle = valid ? '#9aa3b2' : '#ef4444'; mx.font = `${11*dpr}px monospace`;
+  mx.fillText(`(${m}, ${kx})`, ox1 + kx*cell/2, oy1 - 8*dpr);
+  mx.fillStyle = '#9aa3b2'; mx.font = `${10*dpr}px sans-serif`;
+  mx.fillText('batch × in', ox1 + kx*cell/2, oy1 + xH + 16*dpr);
+
+  // @ symbol
+  mx.fillStyle = '#e7e9ee'; mx.font = `bold ${22*dpr}px sans-serif`; mx.textAlign = 'center';
+  mx.fillText('@', (ox1 + kx*cell + ox2)/2, cy + 7*dpr);
+
+  // ----- Wᵀ matrix -----
+  drawGrid(ox2, oy2, k, n, cell, wVal, {
+    hiCol: (valid && aj>=0) ? aj : null,
+    colColor: '#2a1f44', border: '#9f7aea'
+  });
+  mx.fillStyle = '#9f7aea'; mx.font = `bold ${12*dpr}px monospace`; mx.textAlign = 'center';
+  mx.fillText('Wᵀ', ox2 + n*cell/2, oy2 - 24*dpr);
+  mx.fillStyle = '#9aa3b2'; mx.font = `${11*dpr}px monospace`;
+  mx.fillText(`(${k}, ${n})`, ox2 + n*cell/2, oy2 - 8*dpr);
+  mx.fillStyle = '#9aa3b2'; mx.font = `${10*dpr}px sans-serif`;
+  mx.fillText('in × out', ox2 + n*cell/2, oy2 + wH + 16*dpr);
+
+  // = symbol (or ✗)
+  if(valid){
+    mx.fillStyle = '#e7e9ee'; mx.font = `bold ${22*dpr}px sans-serif`; mx.textAlign = 'center';
+    mx.fillText('=', (ox2 + n*cell + ox3)/2, cy + 7*dpr);
+    // ----- y matrix -----
+    const filled = new Set();
+    if(mmAnimating){ for(let c = 0; c < mmCell; c++) filled.add(Math.floor(c/n) + ',' + (c%n)); }
+    else if(mmCell === -2){ for(let i=0;i<m;i++)for(let j=0;j<n;j++) filled.add(i+','+j); } // all done
+    const yvf = (i,j) => {
+      let s = 0; for(let p = 0; p < k; p++) s += xVal(i,p) * wVal(p,j);
+      return s.toFixed(1);
+    };
+    drawGrid(ox3, oy3, m, n, cell, yvf, {
+      filled, onlyFilled: true, border: '#6ee7a8',
+      activeCell: (ai>=0?[ai,aj]:null),
+      hiRow: ai>=0?ai:null, hiCol: aj>=0?aj:null,
+      textColor: '#6ee7a8'
+    });
+    mx.fillStyle = '#6ee7a8'; mx.font = `bold ${12*dpr}px monospace`; mx.textAlign = 'center';
+    mx.fillText('y', ox3 + n*cell/2, oy3 - 24*dpr);
+    mx.fillStyle = '#9aa3b2'; mx.font = `${11*dpr}px monospace`;
+    mx.fillText(`(${m}, ${n})`, ox3 + n*cell/2, oy3 - 8*dpr);
+    mx.fillStyle = '#9aa3b2'; mx.font = `${10*dpr}px sans-serif`;
+    mx.fillText('batch × out', ox3 + n*cell/2, oy3 + yH + 16*dpr);
+  } else {
+    mx.fillStyle = '#ef4444'; mx.font = `bold ${30*dpr}px sans-serif`; mx.textAlign = 'center';
+    mx.fillText('✗', (ox2 + n*cell + ox3)/2, cy + 10*dpr);
+  }
+
+  // ----- inner-dimension match indicator -----
+  const braceY = cy + Math.max(xH, wH)/2 + 36*dpr;
+  const xColCenter = ox1 + kx*cell;          // right edge of x
+  const wRowCenter = ox2;                      // left edge of Wᵀ
+  mx.strokeStyle = valid ? '#6ee7a8' : '#ef4444';
+  mx.lineWidth = 1.5*dpr;
+  mx.beginPath();
+  mx.moveTo(xColCenter - kx*cell/2, braceY);
+  mx.lineTo(xColCenter, braceY + 10*dpr);
+  mx.lineTo(wRowCenter, braceY + 10*dpr);
+  mx.lineTo(wRowCenter + n*cell/2, braceY);
+  mx.stroke();
+  mx.fillStyle = valid ? '#6ee7a8' : '#ef4444';
+  mx.font = `bold ${12*dpr}px monospace`; mx.textAlign = 'center';
+  const innerTxt = valid
+    ? `inner dims match:  k=${kx} = k=${k}  ✓`
+    : `inner dims differ:  ${kx} ≠ ${k}  ✗  cannot multiply`;
+  mx.fillText(innerTxt, (xColCenter + wRowCenter)/2, braceY + 26*dpr);
+
+  // ----- readout: the dot product being computed -----
+  let stat;
+  if(!valid){
+    stat = `<b class="k">Shape mismatch!</b> x is (${m}, ${kx}) but Wᵀ is (${k}, ${n}). `+
+           `To multiply, x's last dim must equal Wᵀ's first dim. <code>RuntimeError: mat1 and mat2 shapes cannot be multiplied (${m}x${kx} and ${k}x${n})</code>`;
+  } else if(mmAnimating && ai >= 0){
+    const terms = [];
+    let s = 0;
+    for(let p = 0; p < k; p++){ const prod = xVal(ai,p)*wVal(p,aj); s += prod; terms.push(`${xVal(ai,p)}×${wVal(p,aj)}`); }
+    stat = `Computing <b class="g">y[${ai},${aj}]</b> = row ${ai} of x · col ${aj} of Wᵀ = `+
+           `${terms.join(' + ')} = <b class="g">${s.toFixed(1)}</b>`;
+  } else if(mmCell === -2){
+    stat = `<b class="g">Done!</b> Every cell of y is a dot product of a row of x and a column of Wᵀ. `+
+           `Result shape: <b class="g">(${m}, ${n})</b> = (batch, out). Then <code>+ b</code> adds the bias.`;
+  } else {
+    stat = `<code>(${m}, ${k}) @ (${k}, ${n}) = (${m}, ${n})</code> — inner dims (${k}) match, outer dims (${m}, ${n}) become the result. Click ▶ to watch each cell get computed.`;
+  }
+  document.getElementById('mmstat').innerHTML = stat;
+}
+
+function mmStep(){
+  const {m, n, valid} = mmDims();
+  if(!valid){ mmAnimating = false; drawMatmul(); return; }
+  mmProg += 0.04;
+  if(mmProg >= 1){
+    mmProg = 0; mmCell++;
+    if(mmCell >= m*n){ mmAnimating = false; mmCell = -2; drawMatmul(); return; }
+  }
+  drawMatmul();
+  mmRAF = requestAnimationFrame(mmStep);
+}
+
+document.getElementById('mmAnim').onclick = () => {
+  if(mmRAF) cancelAnimationFrame(mmRAF);
+  const {valid} = mmDims();
+  if(!valid){ drawMatmul(); return; }
+  mmAnimating = true; mmCell = 0; mmProg = 0;
+  mmStep();
+};
+document.getElementById('mmBreak').onclick = () => {
+  mmBroken = !mmBroken;
+  document.getElementById('mmBreak').classList.toggle('active', mmBroken);
+  if(mmRAF) cancelAnimationFrame(mmRAF);
+  mmAnimating = false; mmCell = -1;
+  drawMatmul();
+};
+document.getElementById('mmReset').onclick = () => {
+  if(mmRAF) cancelAnimationFrame(mmRAF);
+  mmAnimating = false; mmCell = -1; mmBroken = false;
+  document.getElementById('mmBreak').classList.remove('active');
+  drawMatmul();
+};
+[mmEl, mkEl, mnEl].forEach(el => el.oninput = () => {
+  if(mmRAF) cancelAnimationFrame(mmRAF);
+  mmAnimating = false; mmCell = -1;
+  drawMatmul();
+});
+drawMatmul();
 
 // ---- PANEL 2: nn.Sequential network ----
 const nc = document.getElementById('netw'), nx = nc.getContext('2d');
@@ -711,17 +987,21 @@ window.addEventListener('resize', () => location.reload());
 window.TUTOR_CONFIG = {
   caseTitle: "Case 00 · Tensors & NN Basics",
   context: "Interactive page on the fundamentals needed to work with neural networks and AI agents. "
-    + "Panel 1: tensor shapes — visualize 0D (scalar), 1D (vector), 2D (matrix), 3D tensors. Buttons "
-    + "for unsqueeze(0), unsqueeze(-1), squeeze show how dimensions are added/removed. Key concept: "
-    + "the batch dimension and why nn.Linear expects (batch, features). Panel 2: inside nn.Sequential — "
-    + "a network with Linear(1,64)+Tanh, Linear(64,64)+Tanh, Linear(64,1). Input slider shows a value "
-    + "flowing through layers. Node brightness = activation magnitude. Shape annotation at each layer. "
-    + "Panel 3: the training loop as a 4-step cycle (forward, loss, backward, update) with a live loss "
-    + "curve. Train step buttons and learning rate slider. Too high LR = diverge, too low = crawl.",
+    + "Panel 1: unsqueeze — five concrete numbers animate between shape (5,) [flat row], (5,1) "
+    + "[column = 5 samples × 1 feature, via unsqueeze(1)], and (1,5) [bracketed row = 1 sample × 5 features, "
+    + "via unsqueeze(0)]; a right-side checker shows whether nn.Linear(1,64) accepts the shape (green check "
+    + "when last dim=1, red X otherwise). Panel 2: the matrix algebra behind nn.Linear — draws y = x @ Wᵀ + b "
+    + "as grids with dimensions, x is (m,k)=batch×in, Wᵀ is (k,n)=in×out, y is (m,n)=batch×out; the rule "
+    + "(m,k)@(k,n)=(m,n) means inner dims must match; an animation computes each output cell as a dot product "
+    + "of a row of x and a column of Wᵀ; a 'Break the shape' button shows the mismatch RuntimeError. Sliders "
+    + "for batch m, in_features k, out_features n. Panel 3: inside nn.Sequential — a network with "
+    + "Linear(1,64)+Tanh, Linear(64,64)+Tanh, Linear(64,1); input slider shows a value flowing through "
+    + "layers; node brightness = activation magnitude. Panel 4: the training loop as a 4-step cycle "
+    + "(forward, loss, backward, update) with a live loss curve; train buttons and learning rate slider.",
   suggestions: [
-    "What's the difference between shape (5,) and (5,1)?",
+    "Is shape (5,) a scalar? How is it different from (1,5)?",
+    "Why must the inner dimensions match in a matrix multiply?",
     "Why do we need activation functions between linear layers?",
-    "What happens if the learning rate is too high?",
     "What do I actually need to know vs what can an AI agent do for me?"
   ]
 };
