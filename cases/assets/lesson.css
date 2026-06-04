@@ -41,6 +41,23 @@ button:hover{filter:brightness(1.05)}
 code{background:#0b0d13;padding:1px 5px;border-radius:5px;color:var(--good)}
 .formula{font-family:ui-monospace,monospace;background:#0b0d13;padding:2px 6px;border-radius:5px;color:#9fe6c0}
 
+/* active-learning callouts: "what you're seeing" + "try this".
+ * Put right under a panel's controls so the learner knows how to read and drive the visual. */
+.howto{margin-top:10px;display:grid;gap:6px}
+.howto .card{border-radius:8px;padding:8px 11px;font-size:12.5px;line-height:1.5}
+.howto .see{background:#0c1a24;border-left:3px solid var(--accent);color:#cfe6f5}
+.howto .try{background:#0e1a14;border-left:3px solid var(--good);color:#cfeede}
+.howto .tag{font-weight:700;margin-right:5px;letter-spacing:.2px}
+.howto .see .tag{color:var(--accent)}
+.howto .try .tag{color:var(--good)}
+.howto b{font-weight:700}
+.howto code{background:#00000033}
+
+/* live metric cards (sit beside a canvas) */
+.metric{background:#0e1118;border:1px solid #28304a;border-radius:10px;padding:9px 11px}
+.metric .lbl{font-size:11px;color:var(--muted)}
+.metric .num{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+
 /* "Read the theory" expanders */
 details.theory{margin-top:12px;border:1px solid #28304a;border-radius:10px;background:#0e1118}
 details.theory>summary{cursor:pointer;padding:9px 12px;font-size:13px;color:var(--accent);font-weight:600;list-style:none}
