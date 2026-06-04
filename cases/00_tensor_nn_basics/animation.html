@@ -178,9 +178,9 @@
   </div>
 
   <!-- ===== PANEL 3: nn.Sequential ===== -->
-  <div class="panel">
+  <div class="panel full">
     <h2>3 · Inside nn.Sequential: layers and activations</h2>
-    <canvas id="netw" height="260"></canvas>
+    <canvas id="netw" height="300"></canvas>
     <div class="row">
       <label>Input value x</label>
       <input id="xin" type="range" min="-30" max="30" step="1" value="10">
@@ -722,6 +722,7 @@ const W2 = Array.from({length:8}, ()=>rng()*1.5);
 const b2 = Array.from({length:8}, ()=>rng()*0.3);
 const W3 = Array.from({length:8}, ()=>rng()*1);
 const b3 = rng()*0.5;
+let netT = 0;
 
 function fakeForward(x){
   let h1 = W1.map((w,i) => Math.tanh(w * x + b1[i]));
@@ -760,33 +761,48 @@ function drawNet(){
   // col 3: output (1 node)
   positions.push([{x: colW*4.5, y: H/2, val: fwd.out}]);
 
-  // draw connections
+  // colors for each layer group
+  const colors = ['#5cc8ff', '#6ee7a8', '#6ee7a8', '#ff8a5c'];
+
+  // draw connections and flowing signal particles
+  const flowSpeed = 0.008;
   for(let c = 0; c < positions.length - 1; c++){
     const from = positions[c], to = positions[c+1];
-    for(const f of from){
-      for(const t of to){
+    for(let fi = 0; fi < from.length; fi++){
+      const f = from[fi];
+      for(let ti = 0; ti < to.length; ti++){
+        const t = to[ti];
         const strength = Math.abs(f.val * t.val);
         nx.strokeStyle = '#2a3346';
         nx.globalAlpha = Math.min(0.15 + strength * 0.3, 0.6);
         nx.lineWidth = 0.8*dpr;
         nx.beginPath(); nx.moveTo(f.x, f.y); nx.lineTo(t.x, t.y); nx.stroke();
+        if(strength > 0.05){
+          const phase = ((netT * flowSpeed) + c * 0.33 + fi * 0.07 + ti * 0.13) % 1;
+          const px = f.x + (t.x - f.x) * phase;
+          const py = f.y + (t.y - f.y) * phase;
+          nx.fillStyle = colors[c];
+          nx.globalAlpha = Math.min(strength, 0.8) * (1 - Math.abs(phase - 0.5) * 2) * 0.9;
+          nx.beginPath(); nx.arc(px, py, (1.5 + strength) * dpr, 0, 7); nx.fill();
+        }
       }
     }
   }
   nx.globalAlpha = 1;
 
-  // draw nodes
-  const colors = ['#5cc8ff', '#6ee7a8', '#6ee7a8', '#ff8a5c'];
+  // draw nodes with subtle pulse
   for(let c = 0; c < positions.length; c++){
-    for(const n of positions[c]){
-      const intensity = Math.abs(n.val);
+    for(let ni = 0; ni < positions[c].length; ni++){
+      const nd = positions[c][ni];
+      const intensity = Math.abs(nd.val);
+      const pulse = 1 + Math.sin(netT * 0.06 + c + ni * 0.5) * 0.12 * intensity;
       nx.fillStyle = colors[c];
       nx.globalAlpha = 0.3 + Math.min(intensity, 1) * 0.7;
-      nx.beginPath(); nx.arc(n.x, n.y, nodeR + intensity*2*dpr, 0, 7); nx.fill();
+      nx.beginPath(); nx.arc(nd.x, nd.y, (nodeR + intensity*2*dpr) * pulse, 0, 7); nx.fill();
       nx.globalAlpha = 1;
       nx.strokeStyle = colors[c];
       nx.lineWidth = 1.5*dpr;
-      nx.beginPath(); nx.arc(n.x, n.y, nodeR, 0, 7); nx.stroke();
+      nx.beginPath(); nx.arc(nd.x, nd.y, nodeR, 0, 7); nx.stroke();
     }
   }
 
@@ -816,7 +832,7 @@ function drawNet(){
     `Shape flows: (1,) → (64,) → (64,) → (1,). Node brightness = activation magnitude.`;
 }
 document.getElementById('xin').oninput = drawNet;
-drawNet();
+setInterval(()=>{ netT++; drawNet(); }, 40);
 
 // ---- PANEL 3: Training loop ----
 const lc = document.getElementById('loop'), lx = lc.getContext('2d');
