@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case 01 · What is Fine-tuning? — Animated</title>
+<style>
+  :root { --bg:#0f1117; --panel:#181b24; --ink:#e7e9ee; --muted:#9aa3b2; --accent:#5cc8ff; --accent2:#ff8a5c; --good:#6ee7a8; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+         background:var(--bg); color:var(--ink); line-height:1.5; }
+  header { padding:24px 28px 8px; }
+  h1 { margin:0 0 4px; font-size:22px; }
+  .sub { color:var(--muted); font-size:14px; }
+  .wrap { display:grid; grid-template-columns: 1fr 1fr; gap:18px; padding:18px 28px 40px; }
+  @media (max-width: 900px){ .wrap{ grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid #232838; border-radius:14px; padding:16px 18px; }
+  .panel h2 { font-size:15px; margin:0 0 10px; color:var(--accent); letter-spacing:.3px; }
+  canvas { width:100%; background:#0b0d13; border-radius:10px; display:block; }
+  .row { display:flex; align-items:center; gap:10px; margin:10px 0; flex-wrap:wrap; }
+  label { font-size:13px; color:var(--muted); min-width:120px; }
+  input[type=range]{ flex:1; accent-color:var(--accent); }
+  .val { font-variant-numeric:tabular-nums; color:var(--ink); min-width:54px; text-align:right; font-size:13px;}
+  button { background:var(--accent); color:#04222f; border:0; padding:8px 14px; border-radius:8px; font-weight:600; cursor:pointer; }
+  button.ghost { background:#222838; color:var(--ink); }
+  .legend { font-size:12px; color:var(--muted); margin-top:8px; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; }
+  .note { font-size:13px; color:var(--muted); margin-top:10px; }
+  code { background:#0b0d13; padding:1px 5px; border-radius:5px; color:var(--good); }
+  .big { font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Case 01 · What <em>is</em> fine-tuning?</h1>
+  <div class="sub">Two ideas, animated. Play for 5 minutes, then open the notebook. Nothing here needs install.</div>
+</header>
+
+<div class="wrap">
+
+  <!-- LEFT: gradient descent intuition -->
+  <div class="panel">
+    <h2>1 · Training = rolling downhill on a loss landscape</h2>
+    <canvas id="land" height="260"></canvas>
+    <div class="row">
+      <label>Learning rate</label>
+      <input id="lr" type="range" min="0.001" max="0.9" step="0.001" value="0.12">
+      <span class="val" id="lrv">0.120</span>
+    </div>
+    <div class="row">
+      <label>Start position</label>
+      <input id="start" type="range" min="-3.1" max="3.1" step="0.01" value="-2.6">
+      <span class="val" id="startv">-2.60</span>
+    </div>
+    <div class="row">
+      <button id="go">▶ Train</button>
+      <button id="reset" class="ghost">Reset</button>
+      <span class="legend">step <b id="step">0</b> · loss <b id="loss">–</b></span>
+    </div>
+    <div class="note">
+      The ball is the model's weights. Height = <b>loss</b> (how wrong it is). Each step moves
+      <span class="pill" style="background:#10303f;color:var(--accent)">downhill = −learning_rate × gradient</span>.
+      <br>• Tiny LR → safe but slow. • Huge LR → it overshoots and bounces (this is why fine-tuning uses a <b>small</b> LR).
+    </div>
+  </div>
+
+  <!-- RIGHT: pretrain vs finetune -->
+  <div class="panel">
+    <h2>2 · Pre-train vs Fine-tune — same hill, different start</h2>
+    <canvas id="ft" height="260"></canvas>
+    <div class="row">
+      <button id="pre">① Pre-train (from scratch)</button>
+      <button id="shift" class="ghost">② New task arrives ↘</button>
+      <button id="fine" class="ghost">③ Fine-tune</button>
+    </div>
+    <div class="note big">
+      <b>Pre-train:</b> start from <span style="color:var(--accent2)">random weights</span>, take many big steps to a good minimum (expensive, done once).<br>
+      <b>New task:</b> the landscape shifts a little — the old minimum isn't perfect anymore.<br>
+      <b>Fine-tune:</b> start from the <span style="color:var(--good)">already-good weights</span> and take a <b>few small steps</b> to the new minimum. Cheap, fast — the whole point.
+    </div>
+    <div class="legend" id="ftmsg">Click ① then ② then ③.</div>
+  </div>
+
+  <!-- BOTTOM: which weights move -->
+  <div class="panel" style="grid-column:1 / -1;">
+    <h2>3 · Full fine-tuning vs LoRA — how many weights actually move?</h2>
+    <canvas id="grid" height="170"></canvas>
+    <div class="row">
+      <label>Mode</label>
+      <button id="modeFull">Full fine-tune</button>
+      <button id="modeLoRA" class="ghost">LoRA (Case 02)</button>
+      <span class="legend" id="gridmsg"></span>
+    </div>
+    <div class="note">
+      Each square is a weight. <span style="color:var(--accent2)">Orange = updated this step.</span>
+      Full fine-tuning updates <b>every</b> weight (lots of memory + compute). LoRA freezes the grid and
+      learns a tiny side-path instead → that's the <code>peft</code> magic you'll implement in Case 02.
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ---------- Panel 1: gradient descent on a loss curve ----------
+// Loss L(x) = x^4/4 - x^2 + 0.3x + 2  (a double-well so LR effects are visible)
+const land = document.getElementById('land'), lc = land.getContext('2d');
+function fitCanvas(c){ const r=c.getBoundingClientRect(); c.width=r.width*devicePixelRatio; c.height=c.height*devicePixelRatio; }
+[land].forEach(fitCanvas);
+const L  = x => x*x*x*x/4 - x*x + 0.3*x + 2;
+const dL = x => x*x*x - 2*x + 0.3;
+let gx=-2.6, gstep=0, gtimer=null;
+const lr=document.getElementById('lr'), startEl=document.getElementById('start');
+function drawLand(){
+  const W=land.width, H=land.height; lc.clearRect(0,0,W,H);
+  const xmin=-3.1,xmax=3.1; let ymin=1e9,ymax=-1e9;
+  for(let x=xmin;x<=xmax;x+=0.02){const y=L(x); ymin=Math.min(ymin,y); ymax=Math.max(ymax,y);}
+  const X=x=>(x-xmin)/(xmax-xmin)*W, Y=y=>H-20-(y-ymin)/(ymax-ymin)*(H-50);
+  // curve
+  lc.lineWidth=2.5*devicePixelRatio; lc.strokeStyle='#3a4a66'; lc.beginPath();
+  for(let x=xmin,first=true;x<=xmax;x+=0.02){ const px=X(x),py=Y(L(x)); first?lc.moveTo(px,py):lc.lineTo(px,py); first=false; }
+  lc.stroke();
+  // ball
+  const bx=X(gx), by=Y(L(gx));
+  lc.fillStyle='#5cc8ff'; lc.beginPath(); lc.arc(bx,by,7*devicePixelRatio,0,7); lc.fill();
+  // gradient arrow
+  const g=dL(gx); lc.strokeStyle='#ff8a5c'; lc.lineWidth=2*devicePixelRatio; lc.beginPath();
+  lc.moveTo(bx,by); lc.lineTo(bx - Math.sign(g)*28*devicePixelRatio, by); lc.stroke();
+  document.getElementById('loss').textContent=L(gx).toFixed(3);
+  document.getElementById('step').textContent=gstep;
+}
+function stepGD(){
+  const a=parseFloat(lr.value); gx = gx - a*dL(gx); gx=Math.max(-3.1,Math.min(3.1,gx)); gstep++;
+  drawLand();
+  if(gstep>120){ clearInterval(gtimer); gtimer=null; }
+}
+document.getElementById('go').onclick=()=>{ if(gtimer)return; gtimer=setInterval(stepGD,40); };
+document.getElementById('reset').onclick=()=>{ clearInterval(gtimer); gtimer=null; gx=parseFloat(startEl.value); gstep=0; drawLand(); };
+lr.oninput =()=>document.getElementById('lrv').textContent=parseFloat(lr.value).toFixed(3);
+startEl.oninput=()=>{ document.getElementById('startv').textContent=parseFloat(startEl.value).toFixed(2); if(!gtimer){gx=parseFloat(startEl.value); gstep=0; drawLand();} };
+drawLand();
+
+// ---------- Panel 2: pretrain vs finetune ----------
+const ft=document.getElementById('ft'), fc=ft.getContext('2d'); fitCanvas(ft);
+let shift=0, px=-2.7, anim=null, mode='idle';
+const Lf = x => 0.5*Math.pow(x-shift,2) + 0.25*Math.pow(x-shift,4)/2 + 1; // smooth bowl centered at shift
+const dLf= x => (x-shift) + 0.25*Math.pow(x-shift,3);
+function drawFT(label){
+  const W=ft.width,H=ft.height; fc.clearRect(0,0,W,H);
+  const xmin=-3.3,xmax=3.3; let ymin=1e9,ymax=-1e9;
+  for(let x=xmin;x<=xmax;x+=0.02){const y=Lf(x);ymin=Math.min(ymin,y);ymax=Math.max(ymax,y);}
+  const X=x=>(x-xmin)/(xmax-xmin)*W, Y=y=>H-20-(y-ymin)/(ymax-ymin)*(H-50);
+  fc.lineWidth=2.5*devicePixelRatio; fc.strokeStyle='#3a4a66'; fc.beginPath();
+  for(let x=xmin,f=true;x<=xmax;x+=0.02){const a=X(x),b=Y(Lf(x)); f?fc.moveTo(a,b):fc.lineTo(a,b); f=false;}
+  fc.stroke();
+  // minimum marker
+  fc.fillStyle='#2a3346'; fc.beginPath(); fc.arc(X(shift),Y(Lf(shift)),4*devicePixelRatio,0,7); fc.fill();
+  const col = mode==='fine' ? '#6ee7a8' : '#ff8a5c';
+  fc.fillStyle=col; fc.beginPath(); fc.arc(X(px),Y(Lf(px)),7*devicePixelRatio,0,7); fc.fill();
+  if(label){ fc.fillStyle='#9aa3b2'; fc.font=`${13*devicePixelRatio}px sans-serif`; fc.fillText(label,12*devicePixelRatio,20*devicePixelRatio); }
+}
+function run(rate,msg,m){ if(anim)return; mode=m; let n=0;
+  anim=setInterval(()=>{ px=px-rate*dLf(px); n++; drawFT(msg);
+    if(Math.abs(dLf(px))<0.01||n>200){clearInterval(anim);anim=null;} },30); }
+document.getElementById('pre').onclick=()=>{ shift=0; px=-2.9; drawFT(); run(0.18,'pre-training: big steps from random →','pre'); document.getElementById('ftmsg').textContent='① Found a good minimum. Now click ②.'; };
+document.getElementById('shift').onclick=()=>{ shift=1.1; drawFT('new task: hill shifted ↘ old weights now slightly off'); document.getElementById('ftmsg').textContent='② Landscape moved. Old weights aren\'t optimal. Click ③.'; };
+document.getElementById('fine').onclick=()=>{ run(0.08,'fine-tuning: a few SMALL steps from good start →','fine'); document.getElementById('ftmsg').textContent='③ Reached new minimum in far fewer steps — that\'s fine-tuning.'; };
+drawFT();
+
+// ---------- Panel 3: which weights move ----------
+const grid=document.getElementById('grid'), gc=grid.getContext('2d'); fitCanvas(grid);
+const COLS=40, ROWS=12; let gridMode='full', gtick=0, gridAnim=null;
+function drawGrid(){
+  const W=grid.width,H=grid.height; gc.clearRect(0,0,W,H);
+  const cw=W/COLS, ch=H/ROWS;
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    let updated;
+    if(gridMode==='full'){ updated = Math.random()<0.9; }
+    else { // LoRA: only last 2 cols + 2 rows "adapter" move
+      updated = (c>=COLS-2 || r>=ROWS-2) && Math.random()<0.85;
+    }
+    gc.fillStyle = updated ? '#ff8a5c' : '#1c2230';
+    gc.fillRect(c*cw+1,r*ch+1,cw-2,ch-2);
+  }
+  const frac = gridMode==='full' ? '100%' : '~4%';
+  document.getElementById('gridmsg').innerHTML = `weights updated: <b>${frac}</b> of the model`;
+}
+function loopGrid(){ if(gridAnim)clearInterval(gridAnim); gridAnim=setInterval(drawGrid,260); }
+document.getElementById('modeFull').onclick=()=>{ gridMode='full'; document.getElementById('modeFull').className=''; document.getElementById('modeLoRA').className='ghost'; loopGrid(); };
+document.getElementById('modeLoRA').onclick=()=>{ gridMode='lora'; document.getElementById('modeLoRA').className=''; document.getElementById('modeFull').className='ghost'; loopGrid(); };
+loopGrid();
+
+window.addEventListener('resize',()=>{ [land,ft,grid].forEach(c=>{c.width=0;}); location.reload(); });
+</script>
+</body>
+</html>

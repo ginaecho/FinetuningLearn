@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case 02 · LoRA from scratch — Animated</title>
+<style>
+  :root{--bg:#0f1117;--panel:#181b24;--ink:#e7e9ee;--muted:#9aa3b2;--accent:#5cc8ff;--accent2:#ff8a5c;--good:#6ee7a8;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+  header{padding:24px 28px 8px} h1{margin:0 0 4px;font-size:22px} .sub{color:var(--muted);font-size:14px}
+  .wrap{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 28px 40px}
+  @media(max-width:980px){.wrap{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid #232838;border-radius:14px;padding:16px 18px}
+  .panel.full{grid-column:1/-1}
+  .panel h2{font-size:15px;margin:0 0 10px;color:var(--accent)}
+  canvas{width:100%;background:#0b0d13;border-radius:10px;display:block}
+  .row{display:flex;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap}
+  label{font-size:13px;color:var(--muted);min-width:130px}
+  input[type=range]{flex:1;accent-color:var(--accent)}
+  .val{font-variant-numeric:tabular-nums;min-width:46px;text-align:right;font-size:13px}
+  .note{font-size:13px;color:var(--muted);margin-top:10px}
+  code{background:#0b0d13;padding:1px 5px;border-radius:5px;color:var(--good)}
+  b.k{color:var(--accent2)} b.g{color:var(--good)}
+  .stat{font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Case 02 · LoRA from scratch</h1>
+  <div class="sub">The trick: don't update the big weight matrix — approximate its <em>update</em> with two skinny ones.</div>
+</header>
+
+<div class="wrap">
+
+  <!-- low-rank reconstruction -->
+  <div class="panel">
+    <h2>1 · A low-rank update: ΔW ≈ B · A</h2>
+    <canvas id="rec" height="240"></canvas>
+    <div class="row">
+      <label>rank r</label>
+      <input id="r" type="range" min="1" max="20" step="1" value="2">
+      <span class="val" id="rv">2</span>
+    </div>
+    <div class="stat">
+      Full update <b class="k">ΔW</b> is <span id="dim">32×32</span> = <b id="pfull">1024</b> numbers.<br>
+      LoRA stores <b class="g">B (out×r)</b> + <b class="g">A (r×in)</b> = <b id="plora">128</b> numbers
+      → <b id="ratio">12.5%</b> of the cost. Reconstruction error: <b id="err">–</b>
+    </div>
+    <div class="note">Drag <code>r</code>. Tiny r → cheap but blurry. The magic: real weight-<em>updates</em>
+      are nearly low-rank, so a small r already reconstructs them well.</div>
+  </div>
+
+  <!-- the wiring -->
+  <div class="panel">
+    <h2>2 · How it wires into a layer</h2>
+    <canvas id="wire" height="240"></canvas>
+    <div class="note big">
+      Forward pass becomes:&nbsp; <code>y = Wx + (B·A)x · (α/r)</code><br>
+      • <b>W</b> is <span style="color:#6b7689">frozen</span> (gray) — gradients skip it.<br>
+      • <b class="g">A, B</b> are trained (green) — that's all the optimizer touches.<br>
+      • <b>B starts at 0</b> → at step 0 the model == the pretrained model (safe start).<br>
+      • After training you can <b>merge</b>: <code>W ← W + B·A·(α/r)</code> → zero extra inference cost.
+    </div>
+  </div>
+
+  <!-- scaling -->
+  <div class="panel full">
+    <h2>3 · Why this matters at LLM scale</h2>
+    <canvas id="scale" height="150"></canvas>
+    <div class="row">
+      <label>matrix size d (d×d)</label>
+      <input id="d" type="range" min="64" max="4096" step="64" value="1024">
+      <span class="val" id="dv">1024</span>
+      <label style="min-width:60px">rank r</label>
+      <input id="r2" type="range" min="1" max="64" step="1" value="8">
+      <span class="val" id="r2v">8</span>
+    </div>
+    <div class="stat" id="scalemsg"></div>
+    <div class="note">A single 4096×4096 attention matrix = 16.7M params. With r=8, LoRA needs
+      2·4096·8 ≈ 65K — about <b>0.4%</b>. Multiply across all layers → that's how a 7B model fine-tunes on one GPU.</div>
+  </div>
+</div>
+
+<script>
+const dpr=devicePixelRatio||1;
+function fit(c){const r=c.getBoundingClientRect();c.width=r.width*dpr;c.height=c.height*dpr;}
+
+// ---- deterministic pseudo-random "true" ΔW with a low-rank-ish structure ----
+const N=32;
+function seeded(){let s=42;return()=>{s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;}}
+// build a target matrix that is genuinely ~rank 6 plus noise
+let U=[],V=[];{const rnd=seeded();for(let k=0;k<6;k++){U.push(Array.from({length:N},()=>rnd()*2-1));V.push(Array.from({length:N},()=>rnd()*2-1));}}
+const weight=[3,1.4,0.7,0.4,0.2,0.1];
+let W=[];for(let i=0;i<N;i++){W.push([]);for(let j=0;j<N;j++){let v=0;for(let k=0;k<6;k++)v+=weight[k]*U[k][i]*V[k][j];W[i][j]=v;}}
+// power-iteration-ish truncated reconstruction via top-r of the same factors (good enough to visualize)
+function reconstruct(r){let R=[];for(let i=0;i<N;i++){R.push([]);for(let j=0;j<N;j++){let v=0;for(let k=0;k<Math.min(r,6);k++)v+=weight[k]*U[k][i]*V[k][j];R[i][j]=v;}}return R;}
+function frob(A,B){let s=0,n=0;for(let i=0;i<N;i++)for(let j=0;j<N;j++){s+=(A[i][j]-B[i][j])**2;n+=A[i][j]**2;}return Math.sqrt(s/n);}
+
+const rec=document.getElementById('rec'),rc=rec.getContext('2d');fit(rec);
+function heat(ctx,M,x0,y0,w,h){let mx=0;for(let i=0;i<N;i++)for(let j=0;j<N;j++)mx=Math.max(mx,Math.abs(M[i][j]));
+  const cw=w/N,ch=h/N;for(let i=0;i<N;i++)for(let j=0;j<N;j++){const v=M[i][j]/mx;
+    const r=v>0?255:80,g=80,b=v<0?255:80;ctx.fillStyle=`rgb(${Math.abs(v)*r+20},${Math.abs(v)*60+20},${Math.abs(v)*b+20})`;
+    ctx.fillRect(x0+j*cw,y0+i*ch,cw-0.5,ch-0.5);}}
+function drawRec(){const r=+document.getElementById('r').value;document.getElementById('rv').textContent=r;
+  const W_=rec.width,H=rec.height,pad=14*dpr,bw=(W_-3*pad)/2;
+  rc.clearRect(0,0,W_,H);
+  rc.fillStyle='#9aa3b2';rc.font=`${12*dpr}px sans-serif`;
+  rc.fillText('true ΔW',pad,12*dpr);rc.fillText('B·A  (rank '+r+')',pad*2+bw,12*dpr);
+  heat(rc,W,pad,18*dpr,bw,H-26*dpr);heat(rc,reconstruct(r),pad*2+bw,18*dpr,bw,H-26*dpr);
+  const pf=N*N,pl=r*(N+N);
+  document.getElementById('pfull').textContent=pf;
+  document.getElementById('plora').textContent=pl;
+  document.getElementById('ratio').textContent=(100*pl/pf).toFixed(1)+'%';
+  document.getElementById('err').textContent=(frob(W,reconstruct(r))*100).toFixed(1)+'%';
+}
+document.getElementById('r').oninput=drawRec;drawRec();
+
+// ---- wiring diagram ----
+const wire=document.getElementById('wire'),wc=wire.getContext('2d');fit(wire);
+let t=0;
+function drawWire(){const W_=wire.width,H=wire.height;wc.clearRect(0,0,W_,H);
+  const cx=W_/2;
+  function box(x,y,w,h,col,txt){wc.fillStyle=col;wc.strokeStyle=col;wc.globalAlpha=0.18;wc.fillRect(x,y,w,h);
+    wc.globalAlpha=1;wc.strokeRect(x,y,w,h);wc.fillStyle='#e7e9ee';wc.font=`${13*dpr}px sans-serif`;
+    wc.textAlign='center';wc.fillText(txt,x+w/2,y+h/2+4*dpr);wc.textAlign='left';}
+  // input
+  box(20*dpr,H/2-16*dpr,46*dpr,32*dpr,'#5cc8ff','x');
+  // frozen W (top path)
+  box(cx-50*dpr,30*dpr,100*dpr,34*dpr,'#6b7689','W  (frozen)');
+  // A then B (bottom path)
+  box(cx-95*dpr,H-72*dpr,70*dpr,30*dpr,'#6ee7a8','A (r×in)');
+  box(cx+25*dpr,H-72*dpr,70*dpr,30*dpr,'#6ee7a8','B (out×r)');
+  // output sum
+  box(W_-70*dpr,H/2-16*dpr,50*dpr,32*dpr,'#ff8a5c','y');
+  // animated dots flowing
+  wc.fillStyle='#5cc8ff';
+  const p=(t%100)/100;
+  function dot(x1,y1,x2,y2,ph){const k=(p+ph)%1;wc.beginPath();wc.arc(x1+(x2-x1)*k,y1+(y2-y1)*k,3*dpr,0,7);wc.fill();}
+  wc.strokeStyle='#2a3346';wc.lineWidth=1.5*dpr;
+  // lines
+  wc.beginPath();wc.moveTo(66*dpr,H/2);wc.lineTo(cx,47*dpr);wc.lineTo(W_-70*dpr,H/2);
+  wc.moveTo(66*dpr,H/2);wc.lineTo(cx-60*dpr,H-57*dpr);wc.lineTo(cx-25*dpr,H-57*dpr);
+  wc.lineTo(cx+25*dpr,H-57*dpr);wc.lineTo(W_-70*dpr,H/2);wc.stroke();
+  wc.fillStyle='#5cc8ff';dot(66*dpr,H/2,cx,47*dpr,0);dot(cx,47*dpr,W_-70*dpr,H/2,0.5);
+  wc.fillStyle='#6ee7a8';dot(66*dpr,H/2,cx-60*dpr,H-57*dpr,0.25);dot(cx+60*dpr,H-57*dpr,W_-70*dpr,H/2,0.75);
+  t++;}
+setInterval(drawWire,40);
+
+// ---- scaling panel ----
+const sc=document.getElementById('scale'),sx=sc.getContext('2d');fit(sc);
+const dEl=document.getElementById('d'),r2El=document.getElementById('r2');
+function drawScale(){const d=+dEl.value,r=+r2El.value;
+  document.getElementById('dv').textContent=d;document.getElementById('r2v').textContent=r;
+  const full=d*d,lora=2*d*r,pct=100*lora/full;
+  document.getElementById('scalemsg').innerHTML=
+    `Full: <b>${full.toLocaleString()}</b> params &nbsp;·&nbsp; LoRA(r=${r}): <b class="g">${lora.toLocaleString()}</b>`+
+    ` &nbsp;→&nbsp; <b class="g">${pct.toFixed(2)}%</b> &nbsp; (${(full/lora).toFixed(0)}× fewer trainable params)`;
+  const W_=sc.width,H=sc.height;sx.clearRect(0,0,W_,H);
+  const barW=W_-40*dpr;
+  sx.fillStyle='#2a3346';sx.fillRect(20*dpr,30*dpr,barW,26*dpr);
+  sx.fillStyle='#6ee7a8';sx.fillRect(20*dpr,30*dpr,Math.max(2*dpr,barW*pct/100),26*dpr);
+  sx.fillStyle='#9aa3b2';sx.font=`${12*dpr}px sans-serif`;
+  sx.fillText('trainable fraction (green)',20*dpr,22*dpr);
+  sx.fillText(pct.toFixed(2)+'%',24*dpr+barW*pct/100,48*dpr);}
+dEl.oninput=drawScale;r2El.oninput=drawScale;drawScale();
+
+window.addEventListener('resize',()=>location.reload());
+</script>
+</body>
+</html>
