@@ -49,58 +49,66 @@
 
 <div class="wrap">
 
-  <!-- ===== PANEL 1: Tensor Shapes ===== -->
-  <div class="panel">
-    <h2>1 · Tensor shapes: the language of neural networks</h2>
-    <canvas id="tshape" height="260"></canvas>
+  <!-- ===== PANEL 1: unsqueeze explained with nn.Linear compatibility ===== -->
+  <div class="panel full">
+    <h2>1 · unsqueeze: why shape (5,) breaks, but (5, 1) works</h2>
+    <canvas id="tshape" height="340"></canvas>
     <div class="btn-row">
-      <button id="btn0d" onclick="setShape('0d')">Scalar</button>
-      <button id="btn1d" class="active" onclick="setShape('1d')">1D Vector</button>
-      <button id="btn2d" onclick="setShape('2d')">2D Matrix</button>
-      <button id="btn3d" onclick="setShape('3d')">3D Tensor</button>
+      <button id="btnRaw" class="active" onclick="setMode('raw')">Start: shape (5,)</button>
+      <button id="btnU1" onclick="setMode('u1')">unsqueeze(1) → (5, 1)</button>
+      <button id="btnU0" onclick="setMode('u0')">unsqueeze(0) → (1, 5)</button>
+      <button id="btnSq" onclick="setMode('squeeze')">squeeze() → back to (5,)</button>
     </div>
-    <div class="btn-row">
-      <button onclick="doUnsqueeze(0)">unsqueeze(0)</button>
-      <button onclick="doUnsqueeze(-1)">unsqueeze(-1)</button>
-      <button onclick="doSqueeze()">squeeze()</button>
-      <button onclick="resetShape()">Reset</button>
-    </div>
-    <div class="stat" id="shapestat">
-      Shape: <b class="g">(5,)</b> &nbsp; ndim: <b>1</b> &nbsp; numel: <b>5</b>
-    </div>
-    <div class="note">Click the shape buttons, then try <code>unsqueeze</code> and <code>squeeze</code>.
-      Watch how dimensions appear and disappear. The <b>batch dimension</b> (usually dim 0) is why
-      <code>unsqueeze(0)</code> appears everywhere — layers expect <code>(batch, features)</code>.</div>
+    <div class="stat" id="shapestat"></div>
+    <div class="note" id="shapenote"></div>
 
-    <details class="theory"><summary>📖 What are tensors, shapes, and unsqueeze?</summary>
+    <details class="theory"><summary>📖 Why does nn.Linear(1, 64) need the last dimension to be 1?</summary>
     <div class="tbody">
-      <h4>What is a tensor?</h4>
-      <p>A <b class="term">tensor</b> is just a multi-dimensional array of numbers. Everything in PyTorch
-      is a tensor: your data, your model's weights, the gradients, the loss value.</p>
+      <h4>The rule</h4>
+      <p><span class="formula">nn.Linear(in_features, out_features)</span> reads the <b>last dimension</b> of
+      whatever you feed it. That last dimension must equal <code>in_features</code>.</p>
       <ul>
-        <li><b>Scalar</b> (0D): a single number. Shape: <span class="formula">()</span></li>
-        <li><b>Vector</b> (1D): a list. Shape: <span class="formula">(n,)</span></li>
-        <li><b>Matrix</b> (2D): a grid. Shape: <span class="formula">(rows, cols)</span></li>
-        <li><b>3D tensor</b>: a stack of grids. Shape: <span class="formula">(depth, rows, cols)</span></li>
+        <li><code>nn.Linear(1, 64)</code> → last dim must be <b>1</b></li>
+        <li><code>nn.Linear(5, 64)</code> → last dim must be <b>5</b></li>
+        <li><code>nn.Linear(768, 64)</code> → last dim must be <b>768</b></li>
       </ul>
+      <p>Everything <i>before</i> the last dimension is treated as "batch" — independent samples processed in parallel.</p>
 
-      <h4>Why do shapes matter?</h4>
-      <p>Every layer expects a specific input shape. <span class="formula">nn.Linear(1, 64)</span> expects
-      the last dimension to be 1. If your tensor is shape <span class="formula">(256,)</span> instead of
-      <span class="formula">(256, 1)</span>, you get a <b>RuntimeError</b>. Shape mismatches are the
-      <b>#1 error</b> in deep learning.</p>
+      <h4>Why? Because of how matrix multiplication works</h4>
+      <p><code>nn.Linear</code> does <span class="formula">y = x @ W.T + b</span> where <b>W</b> has shape
+      <span class="formula">(out, in)</span>. For the <code>@</code> to work, x's last dim must equal W's last dim = <code>in</code>.</p>
 
-      <h4>What does unsqueeze do?</h4>
-      <p><b class="term">unsqueeze(dim)</b> inserts a new dimension of size 1 at position <code>dim</code>.</p>
+      <h4>The unsqueeze problem, concretely</h4>
+      <p>You generated 5 numbers: <code>x = torch.tensor([2.5, -0.8, 1.3, 0.4, -1.9])</code>. Shape is <span class="formula">(5,)</span>.</p>
+      <p>But <b>what does (5,) mean?</b> PyTorch can't tell:</p>
       <ul>
-        <li><span class="formula">(5,)</span> → <code>unsqueeze(0)</code> → <span class="formula">(1, 5)</span> — added a batch dim</li>
-        <li><span class="formula">(5,)</span> → <code>unsqueeze(-1)</code> → <span class="formula">(5, 1)</span> — added a feature dim</li>
+        <li>Is it <b>5 samples, each with 1 feature</b>? → shape should be <span class="formula">(5, 1)</span></li>
+        <li>Is it <b>1 sample with 5 features</b>? → shape should be <span class="formula">(1, 5)</span></li>
       </ul>
-      <p>This is why the code does <code>x.unsqueeze(1)</code>: it turns 256 bare numbers into 256 samples
-      each with 1 feature, matching what <code>nn.Linear(1, 64)</code> expects.</p>
+      <p>You have to tell PyTorch which you mean. That's what unsqueeze does.</p>
 
-      <h4>What does squeeze do?</h4>
-      <p><b class="term">squeeze()</b> removes all dimensions of size 1. It's the inverse of unsqueeze.</p>
+      <h4>unsqueeze(0) vs unsqueeze(1) vs unsqueeze(-1)</h4>
+      <p>The number tells PyTorch <b>where</b> to insert the new size-1 dimension:</p>
+      <ul>
+        <li><b class="term">unsqueeze(0)</b>: insert at position 0 (the front). <span class="formula">(5,) → (1, 5)</span>.
+        Meaning: "wrap all 5 as 1 group." Now it's 1 sample with 5 features.</li>
+        <li><b class="term">unsqueeze(1)</b> or <b class="term">unsqueeze(-1)</b>: insert at position 1 (the end).
+        <span class="formula">(5,) → (5, 1)</span>. Meaning: "each number is its own group."
+        Now it's 5 samples, each with 1 feature.</li>
+      </ul>
+      <p><b>-1</b> means "the last position" — same as 1 when you start with a 1D tensor. People write -1
+      because it works regardless of how many dimensions there already are.</p>
+
+      <h4>squeeze() — the undo button</h4>
+      <p><b class="term">squeeze()</b> removes all dimensions of size 1, returning to the simpler shape.
+      <span class="formula">(5, 1) → (5,)</span> and <span class="formula">(1, 5) → (5,)</span>.</p>
+
+      <h4>Visual cheat sheet</h4>
+      <p style="text-align:center">
+        <span class="formula">(5,)</span> = 5 numbers, no grouping<br>
+        <span class="formula">(5, 1)</span> = 5 rows, 1 column = 5 samples × 1 feature<br>
+        <span class="formula">(1, 5)</span> = 1 row, 5 columns = 1 sample × 5 features
+      </p>
     </div></details>
   </div>
 
@@ -217,169 +225,203 @@
 const dpr = devicePixelRatio || 1;
 function fit(c){ const r = c.getBoundingClientRect(); c.width = r.width*dpr; c.height = c.height*dpr; }
 
-// ---- PANEL 1: Tensor shapes ----
+// ---- PANEL 1: unsqueeze explained with nn.Linear compatibility ----
 const tc = document.getElementById('tshape'), tx = tc.getContext('2d');
 fit(tc);
+const vals = [2.5, -0.8, 1.3, 0.4, -1.9];
+let shapeMode = 'raw';    // 'raw' | 'u1' | 'u0' | 'squeeze'
+let animT = 0;            // animation progress 0..1
+let animFrom = 'raw', animTo = 'raw';
+let animTimer = null;
 
-let curShape = [5];
-let curLabel = '1d';
-
-function setShape(type){
+function setMode(m){
   document.querySelectorAll('.btn-row button.active').forEach(b => b.classList.remove('active'));
-  const btn = document.getElementById('btn'+type);
-  if(btn) btn.classList.add('active');
-  curLabel = type;
-  if(type === '0d') curShape = [];
-  else if(type === '1d') curShape = [5];
-  else if(type === '2d') curShape = [3, 5];
-  else if(type === '3d') curShape = [2, 3, 5];
-  drawTensor();
+  const btn = {raw:'btnRaw',u1:'btnU1',u0:'btnU0',squeeze:'btnSq'}[m];
+  if(btn) document.getElementById(btn).classList.add('active');
+  animFrom = shapeMode; animTo = m; animT = 0;
+  if(animTimer) cancelAnimationFrame(animTimer);
+  (function tick(){
+    animT = Math.min(1, animT + 0.06);
+    drawTensor();
+    if(animT < 1) animTimer = requestAnimationFrame(tick);
+    else { shapeMode = m; animTimer = null; }
+  })();
 }
 
-function doUnsqueeze(dim){
-  if(dim < 0) dim = curShape.length + dim + 1;
-  if(dim < 0) dim = 0;
-  if(dim > curShape.length) dim = curShape.length;
-  curShape.splice(dim, 0, 1);
-  curLabel = '';
-  document.querySelectorAll('.btn-row button.active').forEach(b => b.classList.remove('active'));
-  drawTensor();
-}
+function ease(t){ return t<0.5 ? 2*t*t : -1+(4-2*t)*t; }
 
-function doSqueeze(){
-  curShape = curShape.filter(d => d !== 1);
-  if(curShape.length === 0 && curLabel !== '0d') curShape = [];
-  curLabel = '';
-  document.querySelectorAll('.btn-row button.active').forEach(b => b.classList.remove('active'));
-  drawTensor();
+function boxPositions(mode, W, H){
+  const cw = 52*dpr, ch = 40*dpr, g = 6*dpr;
+  const cx = W * 0.28, cy = H * 0.5;
+  const pos = [];
+  if(mode === 'raw' || mode === 'squeeze'){
+    const tw = vals.length*(cw+g)-g;
+    for(let i = 0; i < vals.length; i++)
+      pos.push({x: cx - tw/2 + i*(cw+g), y: cy - ch/2, w: cw, h: ch});
+  } else if(mode === 'u1'){
+    const th = vals.length*(ch+g)-g;
+    for(let i = 0; i < vals.length; i++)
+      pos.push({x: cx - cw/2, y: cy - th/2 + i*(ch+g), w: cw, h: ch});
+  } else if(mode === 'u0'){
+    const tw = vals.length*(cw+g)-g;
+    for(let i = 0; i < vals.length; i++)
+      pos.push({x: cx - tw/2 + i*(cw+g), y: cy - ch/2, w: cw, h: ch});
+  }
+  return pos;
 }
-
-function resetShape(){ setShape('1d'); }
 
 function drawTensor(){
   const W = tc.width, H = tc.height;
   tx.clearRect(0, 0, W, H);
-  const cx = W/2, cy = H/2;
-  const cellW = 36*dpr, cellH = 28*dpr, gap = 3*dpr;
+  const e = ease(animT);
+  const fromPos = boxPositions(animFrom, W, H);
+  const toPos   = boxPositions(animTo, W, H);
 
-  tx.font = `bold ${14*dpr}px monospace`;
-  tx.textAlign = 'center';
+  // interpolate box positions
+  const boxes = vals.map((v, i) => ({
+    x: fromPos[i].x + (toPos[i].x - fromPos[i].x) * e,
+    y: fromPos[i].y + (toPos[i].y - fromPos[i].y) * e,
+    w: fromPos[i].w, h: fromPos[i].h, v
+  }));
 
-  const shapeStr = curShape.length === 0 ? '()' : '(' + curShape.join(', ') + ')';
-  const ndim = curShape.length;
-  const numel = curShape.length === 0 ? 1 : curShape.reduce((a,b) => a*b, 1);
+  const curMode = animT >= 1 ? animTo : animTo;
+  const cw = boxes[0].w, ch = boxes[0].h;
 
-  if(ndim === 0){
-    // scalar: one box
+  // draw grouping brackets for the target state
+  tx.globalAlpha = e;
+  if(curMode === 'u1'){
+    // each box is its own row → draw row brackets
+    for(const b of boxes){
+      tx.strokeStyle = '#ff8a5c'; tx.lineWidth = 1.5*dpr;
+      tx.strokeRect(b.x - 4*dpr, b.y - 2*dpr, cw + 8*dpr, ch + 4*dpr);
+    }
+    // dim labels
+    tx.fillStyle = '#ff8a5c'; tx.font = `bold ${11*dpr}px sans-serif`; tx.textAlign = 'left';
+    tx.fillText('dim 0: 5 samples', boxes[0].x + cw + 14*dpr, boxes[0].y + ch/2);
+    tx.fillText('(5 rows)', boxes[0].x + cw + 14*dpr, boxes[0].y + ch/2 + 14*dpr);
     tx.fillStyle = '#5cc8ff';
-    tx.globalAlpha = 0.2;
-    tx.fillRect(cx - cellW/2, cy - cellH/2, cellW, cellH);
-    tx.globalAlpha = 1;
-    tx.strokeStyle = '#5cc8ff';
-    tx.lineWidth = 2*dpr;
-    tx.strokeRect(cx - cellW/2, cy - cellH/2, cellW, cellH);
-    tx.fillStyle = '#e7e9ee';
-    tx.font = `${13*dpr}px monospace`;
-    tx.fillText('3.14', cx, cy + 5*dpr);
-  } else if(ndim === 1 || (ndim === 2 && curShape[0] === 1) || (ndim === 2 && curShape[1] === 1)){
-    // draw as a vector (or unsqueezed vector)
-    const n = numel;
-    const totalW = n * (cellW + gap) - gap;
-    const isRow = ndim < 2 || curShape[1] !== 1;
-
-    for(let i = 0; i < n; i++){
-      let x, y;
-      if(isRow){
-        x = cx - totalW/2 + i*(cellW + gap);
-        y = cy - cellH/2;
-      } else {
-        x = cx - cellW/2;
-        y = cy - (n*(cellH+gap)-gap)/2 + i*(cellH+gap);
-      }
-      tx.fillStyle = '#5cc8ff';
-      tx.globalAlpha = 0.15;
-      tx.fillRect(x, y, cellW, cellH);
-      tx.globalAlpha = 1;
-      tx.strokeStyle = '#5cc8ff';
-      tx.lineWidth = 1.5*dpr;
-      tx.strokeRect(x, y, cellW, cellH);
-      tx.fillStyle = '#9aa3b2';
-      tx.font = `${11*dpr}px monospace`;
-      tx.fillText((Math.sin(i+1)*3).toFixed(1), x+cellW/2, y+cellH/2+4*dpr);
-    }
-    // dimension labels
+    tx.fillText('dim 1: 1 feature', boxes[0].x + cw + 14*dpr, boxes[boxes.length-1].y + ch/2);
+    tx.fillText('(1 column)', boxes[0].x + cw + 14*dpr, boxes[boxes.length-1].y + ch/2 + 14*dpr);
+  } else if(curMode === 'u0'){
+    // all boxes in one big bracket
+    const x0 = boxes[0].x - 6*dpr, y0 = boxes[0].y - 6*dpr;
+    const bw = boxes[4].x + cw - boxes[0].x + 12*dpr, bh = ch + 12*dpr;
+    tx.strokeStyle = '#ff8a5c'; tx.lineWidth = 1.5*dpr;
+    tx.strokeRect(x0, y0, bw, bh);
+    tx.fillStyle = '#ff8a5c'; tx.font = `bold ${11*dpr}px sans-serif`; tx.textAlign = 'center';
+    tx.fillText('dim 0: 1 sample (1 row)', x0 + bw/2, y0 - 8*dpr);
     tx.fillStyle = '#5cc8ff';
-    tx.font = `${11*dpr}px sans-serif`;
-    if(isRow && ndim >= 1){
-      const totalDrawn = n * (cellW + gap) - gap;
-      tx.fillText('dim '+(ndim-1)+': '+n, cx, cy + cellH/2 + 18*dpr);
-    }
-    if(!isRow){
-      tx.save();
-      tx.translate(cx - cellW/2 - 14*dpr, cy);
-      tx.rotate(-Math.PI/2);
-      tx.fillText('dim 0: '+n, 0, 0);
-      tx.restore();
-    }
-    if(ndim === 2){
-      tx.fillStyle = '#ff8a5c';
-      tx.font = `${11*dpr}px sans-serif`;
-      if(curShape[0] === 1) tx.fillText('dim 0: 1 (unsqueezed)', cx, cy - cellH/2 - 10*dpr);
-      if(curShape[1] === 1) tx.fillText('dim 1: 1 (unsqueezed)', cx + cellW/2 + 40*dpr, cy);
-    }
-  } else if(ndim === 2){
-    const rows = curShape[0], cols = curShape[1];
-    const totalW = cols*(cellW+gap)-gap, totalH = rows*(cellH+gap)-gap;
-    const sx = cx - totalW/2, sy = cy - totalH/2;
-    for(let r = 0; r < rows; r++){
-      for(let c = 0; c < cols; c++){
-        const x = sx + c*(cellW+gap), y = sy + r*(cellH+gap);
-        const hue = (r*cols+c) / (rows*cols);
-        tx.fillStyle = `hsl(${200+hue*40}, 60%, 25%)`;
-        tx.fillRect(x, y, cellW, cellH);
-        tx.strokeStyle = '#5cc8ff';
-        tx.lineWidth = 1*dpr;
-        tx.strokeRect(x, y, cellW, cellH);
-        tx.fillStyle = '#9aa3b2';
-        tx.font = `${10*dpr}px monospace`;
-        tx.fillText((Math.sin(r*cols+c+1)*2).toFixed(1), x+cellW/2, y+cellH/2+4*dpr);
-      }
-    }
-    tx.fillStyle = '#5cc8ff'; tx.font = `${11*dpr}px sans-serif`;
-    tx.fillText('dim 1: '+cols, cx, sy + totalH + 18*dpr);
-    tx.save(); tx.translate(sx - 14*dpr, cy); tx.rotate(-Math.PI/2);
-    tx.fillText('dim 0: '+rows, 0, 0); tx.restore();
-  } else {
-    // 3D+: draw as stacked grids
-    const depth = curShape[0], rows = curShape.length > 1 ? curShape[1] : 1, cols = curShape.length > 2 ? curShape[2] : 1;
-    const smallW = 22*dpr, smallH = 18*dpr, sg = 2*dpr;
-    const gridW = cols*(smallW+sg)-sg, gridH = rows*(smallH+sg)-sg;
-    const offX = 18*dpr, offY = -14*dpr;
+    tx.fillText('dim 1: 5 features (5 columns)', x0 + bw/2, y0 + bh + 16*dpr);
+  }
+  tx.globalAlpha = 1;
 
-    for(let d = depth-1; d >= 0; d--){
-      const bx = cx - gridW/2 + d*offX - (depth-1)*offX/2;
-      const by = cy - gridH/2 + d*offY - (depth-1)*offY/2;
-      for(let r = 0; r < rows; r++){
-        for(let c = 0; c < cols; c++){
-          const x = bx + c*(smallW+sg), y = by + r*(smallH+sg);
-          const alpha = d === 0 ? 1 : 0.5;
-          tx.globalAlpha = alpha;
-          tx.fillStyle = `hsl(${200 + d*50}, 55%, 25%)`;
-          tx.fillRect(x, y, smallW, smallH);
-          tx.strokeStyle = d === 0 ? '#5cc8ff' : '#3a5a7a';
-          tx.lineWidth = 1*dpr;
-          tx.strokeRect(x, y, smallW, smallH);
-        }
-      }
-    }
+  // draw boxes with values
+  for(const b of boxes){
+    tx.fillStyle = '#5cc8ff'; tx.globalAlpha = 0.15;
+    tx.fillRect(b.x, b.y, b.w, b.h);
     tx.globalAlpha = 1;
-    tx.fillStyle = '#5cc8ff'; tx.font = `${11*dpr}px sans-serif`;
-    tx.fillText('shape: '+shapeStr, cx, cy + gridH/2 + 30*dpr);
-    tx.fillText('depth='+depth+', rows='+rows+', cols='+cols, cx, cy + gridH/2 + 46*dpr);
+    tx.strokeStyle = '#5cc8ff'; tx.lineWidth = 1.5*dpr;
+    tx.strokeRect(b.x, b.y, b.w, b.h);
+    tx.fillStyle = '#e7e9ee'; tx.font = `bold ${13*dpr}px monospace`; tx.textAlign = 'center';
+    tx.fillText(b.v.toFixed(1), b.x + b.w/2, b.y + b.h/2 + 5*dpr);
   }
 
+  // ------- RIGHT SIDE: nn.Linear compatibility checker -------
+  const rx = W * 0.60, ry = H * 0.10, rw = W * 0.36, rh = H * 0.80;
+
+  // the "machine" box for nn.Linear(1, 64)
+  const mx = rx + 10*dpr, my = ry + 10*dpr, mw = rw - 20*dpr, mh = 60*dpr;
+  tx.fillStyle = '#1c2538'; tx.fillRect(mx, my, mw, mh);
+  tx.strokeStyle = '#5cc8ff'; tx.lineWidth = 1.5*dpr; tx.strokeRect(mx, my, mw, mh);
+  tx.fillStyle = '#5cc8ff'; tx.font = `bold ${13*dpr}px monospace`; tx.textAlign = 'center';
+  tx.fillText('nn.Linear(1, 64)', mx + mw/2, my + 24*dpr);
+  tx.fillStyle = '#9aa3b2'; tx.font = `${11*dpr}px sans-serif`;
+  tx.fillText('needs last dim = 1', mx + mw/2, my + 42*dpr);
+
+  // shape + compatibility
+  const sy = my + mh + 20*dpr;
+  let shapeStr, lastDim, compatible, meaning, explain;
+  if(curMode === 'raw' || curMode === 'squeeze'){
+    shapeStr = '(5,)';
+    lastDim = 5;
+    compatible = false;
+    meaning = '5 numbers, no grouping';
+    explain = 'PyTorch reads last dim = 5. Linear(1,64) needs 1. CRASH!';
+  } else if(curMode === 'u1'){
+    shapeStr = '(5, 1)';
+    lastDim = 1;
+    compatible = true;
+    meaning = '5 samples, 1 feature each';
+    explain = 'Last dim = 1. Linear reads 1 number per sample. Output: (5, 64)';
+  } else {
+    shapeStr = '(1, 5)';
+    lastDim = 5;
+    compatible = false;
+    meaning = '1 sample, 5 features';
+    explain = 'Last dim = 5. Linear(1,64) needs 1. CRASH! (use Linear(5,64) instead)';
+  }
+
+  // draw shape box
+  tx.fillStyle = compatible ? '#0d2618' : '#2a1515';
+  tx.fillRect(mx, sy, mw, 50*dpr);
+  tx.strokeStyle = compatible ? '#6ee7a8' : '#ef4444';
+  tx.lineWidth = 2*dpr;
+  tx.strokeRect(mx, sy, mw, 50*dpr);
+  tx.font = `bold ${16*dpr}px monospace`; tx.textAlign = 'center';
+  tx.fillStyle = compatible ? '#6ee7a8' : '#ef4444';
+  tx.fillText(shapeStr, mx + mw/2, sy + 22*dpr);
+  tx.font = `${11*dpr}px sans-serif`;
+  tx.fillStyle = '#c4ccda';
+  tx.fillText(meaning, mx + mw/2, sy + 40*dpr);
+
+  // check / X icon
+  const iy = sy + 62*dpr;
+  tx.font = `bold ${22*dpr}px sans-serif`; tx.textAlign = 'center';
+  if(compatible){
+    tx.fillStyle = '#6ee7a8';
+    tx.fillText('✓', mx + 18*dpr, iy + 8*dpr);
+    tx.font = `bold ${12*dpr}px sans-serif`;
+    tx.fillText('Compatible!', mx + mw/2, iy + 8*dpr);
+  } else {
+    tx.fillStyle = '#ef4444';
+    tx.fillText('✗', mx + 18*dpr, iy + 8*dpr);
+    tx.font = `bold ${12*dpr}px sans-serif`;
+    tx.fillText('Shape mismatch!', mx + mw/2, iy + 8*dpr);
+  }
+
+  // explanation
+  tx.font = `${11*dpr}px sans-serif`; tx.textAlign = 'left';
+  tx.fillStyle = '#9aa3b2';
+  const lines = explain.match(/.{1,42}(\s|$)/g) || [explain];
+  lines.forEach((ln, i) => tx.fillText(ln.trim(), mx + 4*dpr, iy + 30*dpr + i*15*dpr));
+
+  // arrow showing what "last dim" means
+  const ady = iy + 30*dpr + lines.length * 15*dpr + 12*dpr;
+  tx.fillStyle = '#5cc8ff'; tx.font = `${11*dpr}px sans-serif`; tx.textAlign = 'center';
+  tx.fillText('The rule: Linear looks at the LAST', mx + mw/2, ady);
+  tx.fillText('dimension only. Everything before = batch.', mx + mw/2, ady + 14*dpr);
+
+  // update stat + note
   document.getElementById('shapestat').innerHTML =
-    `Shape: <b class="g">${shapeStr}</b> &nbsp; ndim: <b>${ndim}</b> &nbsp; numel: <b>${numel}</b>`;
+    `Shape: <b class="${compatible?'g':'k'}">${shapeStr}</b> &nbsp;`+
+    `Last dim: <b>${lastDim}</b> &nbsp;`+
+    `nn.Linear(1,64): <b class="${compatible?'g':'k'}">${compatible?'OK':'MISMATCH'}</b>`;
+
+  const notes = {
+    raw: '<b>Start:</b> 5 numbers in a flat list — shape <code>(5,)</code>. No batch, no feature dimension. '
+      + '<code>nn.Linear(1, 64)</code> reads the last dim (5) and says <b style="color:#ef4444">"I need 1, not 5!"</b> → crash. '
+      + 'Click <b>unsqueeze(1)</b> to fix it.',
+    u1: '<b class="g">Fixed!</b> <code>unsqueeze(1)</code> inserted a size-1 dim at the end → <code>(5, 1)</code>. '
+      + 'Now each number sits in its own row: <b>5 samples, 1 feature each</b>. '
+      + 'Linear sees last dim = 1 → <b style="color:#6ee7a8">match!</b> Output will be <code>(5, 64)</code>.',
+    u0: '<code>unsqueeze(0)</code> inserted a size-1 dim at the front → <code>(1, 5)</code>. '
+      + 'All 5 numbers are in one row: <b>1 sample, 5 features</b>. '
+      + 'Linear sees last dim = 5 → <b style="color:#ef4444">still crashes with Linear(1,64)!</b> '
+      + 'You would need <code>nn.Linear(5, 64)</code> for this shape.',
+    squeeze: '<code>squeeze()</code> removed the size-1 dimension → back to <code>(5,)</code>. '
+      + 'Same problem as the start: no grouping, Linear can\'t read it.'
+  };
+  document.getElementById('shapenote').innerHTML = notes[curMode] || '';
 }
 drawTensor();
 
