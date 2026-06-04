@@ -174,13 +174,20 @@ function fwd(n,x){var s=0;for(var i=0;i<H;i++)s+=n.w2[i]*Math.tanh(n.w1[i]*x+n.b
 function getP(n){var p=[];for(var i=0;i<H;i++)p.push(n.w1[i]);for(var i=0;i<H;i++)p.push(n.b1[i]);for(var i=0;i<H;i++)p.push(n.w2[i]);p.push(n.b2);return p}
 function setP(n,p){for(var i=0;i<H;i++)n.w1[i]=p[i];for(var i=0;i<H;i++)n.b1[i]=p[H+i];for(var i=0;i<H;i++)n.w2[i]=p[2*H+i];n.b2=p[3*H]}
 function mseLoss(n,xs,ys){var s=0;for(var i=0;i<xs.length;i++){var d=fwd(n,xs[i])-ys[i];s+=d*d}return s/xs.length}
-function gradStep(net,lossFn,lr){var eps=1e-4,params=getP(net);var l0=lossFn(params);for(var j=0;j<NP;j++){params[j]+=eps;var l1=lossFn(params);var g=(l1-l0)/eps;params[j]-=eps;params[j]-=lr*Math.max(-10,Math.min(10,g))}setP(net,params)}
+// Two-phase numerical gradient descent: compute ALL partials at the original
+// point first, THEN apply the update. (Interleaving the two — updating each
+// weight inside the gradient loop — measures gradients at a shifted point and
+// fails to descend.)
+function gradStep(net,lossFn,lr){var eps=1e-4,params=getP(net);var l0=lossFn(params);var grad=new Array(NP);for(var j=0;j<NP;j++){params[j]+=eps;var l1=lossFn(params);grad[j]=(l1-l0)/eps;params[j]-=eps}setP(net,params);for(var j=0;j<NP;j++){var g=Math.max(-10,Math.min(10,grad[j]));params[j]-=lr*g}setP(net,params)}
 
 var XMIN=-Math.PI, XMAX=Math.PI;
+// Four road conditions. Each is individually learnable to a high level by the
+// tiny net, but they conflict pairwise (different phase / slope), so training
+// on one degrades the others — which is exactly the forgetting we want to show.
 var envs=[
   {name:'Sunny',icon:'☀',color:'#6ee7a8',fn:function(x){return Math.sin(x)}},
-  {name:'Rain', icon:'🌧',color:'#5cc8ff',fn:function(x){return Math.sin(x+0.7)+0.2*Math.cos(2*x)}},
-  {name:'Snow', icon:'❄',color:'#a78bfa',fn:function(x){return 0.7*Math.cos(1.8*x)}},
+  {name:'Rain', icon:'🌧',color:'#5cc8ff',fn:function(x){return Math.sin(x+0.9)}},
+  {name:'Snow', icon:'❄',color:'#a78bfa',fn:function(x){return Math.cos(x)}},
   {name:'Night',icon:'🌙',color:'#fbbf24',fn:function(x){return -Math.sin(x)+0.15*x}},
 ];
 
@@ -193,7 +200,7 @@ var memory=[], memCap=20;
 var timeline=[], curEnv=0, totalCost=0, trainCount=0;
 var costHistory=[], accHistory=[];
 var useAdapters=false, useMemory=true, useEWC=false;
-var LR=0.06;
+var LR=0.08;
 
 function computeFisher(n){
   var f=new Array(NP);for(var j=0;j<NP;j++)f[j]=0;
@@ -216,11 +223,13 @@ function computeFisher(n){
 
 function initSystem(){
   net=makeNet();
-  for(var i=0;i<600;i++){
-    var e=Math.floor(Math.random()*envs.length);
-    var b=sampleBatch(envs[e].fn,16);
+  // The "base model" ships knowing only Sunny driving (the common case).
+  // Rain/Snow/Night start low — the learner improves them in the field,
+  // and watches whether Sunny survives.
+  for(var i=0;i<450;i++){
+    var b=sampleBatch(envs[0].fn,16);
     var loss=function(p){setP(net,p);return mseLoss(net,b.xs,b.ys)};
-    gradStep(net,loss,0.05);
+    gradStep(net,loss,0.07);
   }
   netStar=cloneNet(net);
   fisherS=computeFisher(net);
@@ -240,7 +249,7 @@ function encounter(envIdx){
 }
 
 function doTrain(){
-  var steps=50;
+  var steps=70;
   var targetNet=useAdapters?adapters[curEnv]:net;
   var fn=envs[curEnv].fn;
   for(var i=0;i<steps;i++){
@@ -273,8 +282,7 @@ function doStore(){
 
 function doReplay(){
   if(memory.length===0)return;
-  var steps=50;
-  var targetNet=useAdapters?net:net;
+  var steps=70;
   for(var i=0;i<steps;i++){
     var xs=[],ys=[];
     for(var j=0;j<16;j++){
