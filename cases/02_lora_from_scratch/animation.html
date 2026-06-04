@@ -23,6 +23,19 @@
   code{background:#0b0d13;padding:1px 5px;border-radius:5px;color:var(--good)}
   b.k{color:var(--accent2)} b.g{color:var(--good)}
   .stat{font-size:13px;margin-top:8px}
+  details.theory{margin-top:12px;border:1px solid #28304a;border-radius:10px;background:#0e1118}
+  details.theory>summary{cursor:pointer;padding:9px 12px;font-size:13px;color:var(--accent);font-weight:600;list-style:none}
+  details.theory>summary::-webkit-details-marker{display:none}
+  details.theory>summary::before{content:"▶ ";font-size:11px}
+  details.theory[open]>summary::before{content:"▼ "}
+  details.theory .tbody{padding:4px 14px 14px;font-size:13px;color:#c4ccda}
+  details.theory .tbody h4{margin:12px 0 4px;color:var(--ink);font-size:13.5px}
+  details.theory .tbody p{margin:6px 0}
+  details.theory .tbody b.term{color:var(--good)}
+  details.theory .tbody .btnref{color:var(--accent2);font-weight:600}
+  details.theory .tbody ul{margin:6px 0;padding-left:18px}
+  details.theory .tbody li{margin:3px 0}
+  .formula{font-family:ui-monospace,monospace;background:#0b0d13;padding:2px 6px;border-radius:5px;color:#9fe6c0}
 </style>
 </head>
 <body>
@@ -49,6 +62,32 @@
     </div>
     <div class="note">Drag <code>r</code>. Tiny r → cheap but blurry. The magic: real weight-<em>updates</em>
       are nearly low-rank, so a small r already reconstructs them well.</div>
+    <details class="theory"><summary>📖 What is ΔW, "rank", and B·A?</summary>
+    <div class="tbody">
+      <h4>What is ΔW (the left heatmap)?</h4>
+      <p>When you fine-tune, every weight matrix <b class="term">W</b> changes by some amount. That change is
+      itself a matrix, <b class="term">ΔW</b> ("delta-W" = how much the weights moved). The left heatmap is a
+      pretend ΔW; red/blue = positive/negative change.</p>
+
+      <h4>What is "rank"?</h4>
+      <p><b class="term">Rank</b> = how many <i>independent directions</i> a matrix really uses. A low-rank
+      matrix looks complex but is secretly built from a few patterns repeated/scaled. Key empirical fact:
+      the ΔW a task needs is <b>nearly low-rank</b> — it lives in just a handful of directions.</p>
+
+      <h4>What is B·A (the right heatmap)?</h4>
+      <p>Instead of storing the full ΔW, LoRA builds it from two skinny matrices:
+      <span class="formula">ΔW ≈ B · A</span>, where <b class="term">A</b> is r×in and <b class="term">B</b>
+      is out×r. The number <b>r</b> is how skinny they are.</p>
+
+      <h4>What does the <span class="btnref">rank r</span> slider show?</h4>
+      <ul>
+        <li>Small r → very few numbers to store (cheap), but the right heatmap looks blurry — it can't
+        capture every detail. Watch the "reconstruction error" rise.</li>
+        <li>Bigger r → right heatmap matches the left better (error drops), but costs more params.</li>
+      </ul>
+      <p>The win: error usually gets tiny at a small r (like 4–16), long before you pay for full rank. Compare
+      the two param counts shown — LoRA stores a fraction.</p>
+    </div></details>
   </div>
 
   <!-- the wiring -->
@@ -62,6 +101,37 @@
       • <b>B starts at 0</b> → at step 0 the model == the pretrained model (safe start).<br>
       • After training you can <b>merge</b>: <code>W ← W + B·A·(α/r)</code> → zero extra inference cost.
     </div>
+    <details class="theory"><summary>📖 What does the wiring show, and what is "frozen"?</summary>
+    <div class="tbody">
+      <h4>What are the boxes and flowing dots?</h4>
+      <p>This is the <b>forward pass</b> — how an input <span class="formula">x</span> becomes an output
+      <span class="formula">y</span>. The dots are data flowing. There are two paths that get added together:
+      <span class="formula">y = Wx + (B·A)x·(α/r)</span>.</p>
+      <ul>
+        <li><b>Top path (gray, W):</b> the original pre-trained layer.</li>
+        <li><b>Bottom path (green, A then B):</b> the small LoRA adapter.</li>
+      </ul>
+
+      <h4>What does "frozen" mean?</h4>
+      <p><b class="term">Frozen</b> = we tell the optimizer "never change these numbers." During training,
+      gradients flow but W is held fixed; only <b class="term">A</b> and <b class="term">B</b> are updated.
+      That's why only ~0.4% of params are "trainable" even though the model is huge.</p>
+
+      <h4>Why start with B = 0?</h4>
+      <p>If B is all zeros, then B·A = 0, so at step 0 the adapter adds <b>nothing</b> and the model behaves
+      <i>exactly</i> like the pre-trained one. Training then gently grows the adapter from there — a safe
+      start with no sudden jump in behavior.</p>
+
+      <h4>What is α (alpha) / the scale?</h4>
+      <p><span class="formula">α/r</span> is a volume knob on the adapter's effect. Bigger α = stronger
+      update. Dividing by r keeps the strength stable when you change r, so you can tune r and α somewhat
+      independently.</p>
+
+      <h4>What is "merge"?</h4>
+      <p>After training you can compute <span class="formula">W ← W + B·A·(α/r)</span> once and fold the
+      adapter back into W. Now it's an ordinary layer again — same speed as the original, no extra cost at
+      inference time. You can also keep them <i>separate</i> and swap different adapters per task.</p>
+    </div></details>
   </div>
 
   <!-- scaling -->
@@ -79,6 +149,25 @@
     <div class="stat" id="scalemsg"></div>
     <div class="note">A single 4096×4096 attention matrix = 16.7M params. With r=8, LoRA needs
       2·4096·8 ≈ 65K — about <b>0.4%</b>. Multiply across all layers → that's how a 7B model fine-tunes on one GPU.</div>
+    <details class="theory"><summary>📖 What do the sliders prove?</summary>
+    <div class="tbody">
+      <p>This panel does the arithmetic at <b>real LLM sizes</b> so the savings feel concrete.</p>
+      <h4>The two sliders</h4>
+      <ul>
+        <li><span class="btnref">matrix size d</span> — a weight matrix is d×d, so full fine-tuning trains
+        <span class="formula">d²</span> numbers. At d=4096 that's ~16.7 million for <i>one</i> matrix.</li>
+        <li><span class="btnref">rank r</span> — LoRA trains only <span class="formula">2·d·r</span> numbers
+        instead.</li>
+      </ul>
+      <h4>What the green bar shows</h4>
+      <p>The trainable fraction <span class="formula">2·d·r / d² = 2r/d</span>. As models get bigger (larger
+      d), this fraction <b>shrinks</b> — LoRA gets <i>relatively</i> cheaper the larger the model. That's the
+      punchline: the bigger the model, the more LoRA saves you.</p>
+      <h4>Why you care (your capstone)</h4>
+      <p>Cheap-to-train adapters are the "cost &amp; efficiency" half of your self-driving question. Each new
+      data update can be a small adapter instead of a full retrain — fast, affordable, and it leaves the base
+      model untouched.</p>
+    </div></details>
   </div>
 </div>
 

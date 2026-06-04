@@ -33,7 +33,8 @@ update's magnitude stable as you change `r`.
 ## Files
 | File | What it is |
 |------|------------|
-| `animation.html` | Low-rank reconstruction, layer wiring, and LLM-scale savings. |
+| `animation.html` | Low-rank reconstruction, layer wiring, and LLM-scale savings. Each panel has a **📖 Read the theory** expander + a **💬 Ask tutor** button. |
+| `THEORY.md` | Every term explained + curated links (LoRA/QLoRA papers, PEFT docs) to go deeper. |
 | `lora.py` | `LoRALinear` + full-vs-LoRA comparison you can run. |
 | `lora_from_scratch.ipynb` | Build it, rank sweep, save adapters, merge for inference. |
 | `challenge.md` | Your turn. |

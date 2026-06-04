@@ -28,7 +28,8 @@
 ## Files
 | File | What it is |
 |------|------------|
-| `animation.html` | Interactive intuition (no install). |
+| `animation.html` | Interactive intuition (no install). Each panel has a **📖 Read the theory** expander + a **💬 Ask tutor** button. |
+| `THEORY.md` | Every term explained + curated links (papers, videos) to go deeper. |
 | `train.py` | Minimal, readable proof: warm start beats cold start. |
 | `foundations.ipynb` | Full walkthrough with plots + animation + weight-change heatmap. |
 | `challenge.md` | Your turn — a small open-ended exercise. |
