@@ -11,13 +11,33 @@
 - How to **save, load, and merge** LoRA adapters from a real model.
 - That you can fine-tune an 8B LLM on a **free Colab T4** in under 30 minutes.
 
+## How to run the notebook on Google Colab (free GPU)
+
+> Never used Colab? It's a free Jupyter notebook in the cloud with a GPU — no install on your machine.
+> See also [`SETUP.md` §6b](../../SETUP.md#6b-google-colab-cases-03) for the full walkthrough.
+
+1. Go to [colab.research.google.com](https://colab.research.google.com) and sign in with a Google account.
+2. **Upload the notebook:**
+   - Click **File → Upload notebook**.
+   - Pick `qlora_finetune.ipynb` from this folder on your computer.
+   - (Alternative: if the repo is on GitHub, click **File → Open notebook → GitHub** tab, paste the repo URL, and select the notebook.)
+3. **Switch to a GPU runtime:**
+   - Click **Runtime → Change runtime type** → set **Hardware accelerator** to **T4 GPU** → **Save**.
+   - You should see "T4" in the top-right status area.
+4. **Run all cells:** Click **Runtime → Run all** (or Ctrl+F9). The first cell installs packages (~2 min), then everything runs top to bottom.
+5. **Save your work:** Colab auto-saves to your Google Drive. You can also **File → Download → Download .ipynb**.
+
+> **Session limits:** free Colab sessions disconnect after ~90 min idle or ~12 hours total. The default notebook (Qwen-0.5B, 1K examples) finishes in ~5 min, so this isn't a problem. For longer runs (Llama-3-8B), keep the tab active.
+
+---
+
 ## Do it in this order (~40 min)
 
-1. 🎬 Open **`animation.html`**:
+1. 🎬 Open **`animation.html`** in your browser (local file, no GPU needed):
    - Panel 1 — drag the bit-width slider; watch precision vs compression trade off.
    - Panel 2 — see where VRAM goes for full fine-tune vs LoRA vs QLoRA; slide model size.
    - Panel 3 — the QLoRA pipeline: load 4-bit → freeze → attach LoRA → train → merge.
-2. 📓 Open **`qlora_finetune.ipynb`** in **Google Colab** (or locally if you have a GPU):
+2. 📓 **Upload `qlora_finetune.ipynb` to Google Colab** (see steps above):
    - Installs everything, loads a model in 4-bit, attaches LoRA, fine-tunes on a small dataset.
    - Default: ungated `Qwen/Qwen2.5-0.5B-Instruct` (runs in minutes, no license needed).
    - Swap to `meta-llama/Meta-Llama-3-8B` once comfortable (see `GET_LLAMA3.md` for access).

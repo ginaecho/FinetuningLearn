@@ -4,6 +4,7 @@ Work through these in order — each builds on the last and they all lead to the
 
 | # | Folder | What you build | Status |
 |---|--------|----------------|--------|
+| 00 | [`00_tensor_nn_basics`](./00_tensor_nn_basics/) | Tensors, shapes, layers, training loop — the co-pilot vocabulary | ✅ |
 | 01 | [`01_foundations`](./01_foundations/) | Pre-train vs fine-tune; warm start beats cold start | ✅ |
 | 02 | [`02_lora_from_scratch`](./02_lora_from_scratch/) | Implement LoRA yourself; match full tuning at ~1% cost | ✅ |
 | 03 | [`03_qlora_real_llm`](./03_qlora_real_llm/) | QLoRA on a real LLM via `peft` + 4-bit (Colab-first) | ✅ |
@@ -16,7 +17,7 @@ Each folder: `README.md` (start here) · `animation.html` (intuition) · `*.ipyn
 
 From Case 03 onward, notebooks are **Colab-first** — open in Google Colab (free T4 GPU) and run. Each has a setup cell that installs everything.
 
-Built so far: **01, 02, and 03**. Finish their challenges, then say the word and I'll build the next case.
+Built so far: **00, 01, 02, and 03**. Finish their challenges, then say the word and I'll build the next case.
 
 ---
 
