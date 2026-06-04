@@ -66,16 +66,21 @@
     border:0;border-radius:999px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer;
     box-shadow:0 6px 24px rgba(0,0,0,.35);font-family:ui-sans-serif,system-ui,sans-serif}
   #tutor-fab:hover{filter:brightness(1.05)}
-  #tutor-panel{position:fixed;right:20px;bottom:20px;z-index:100000;width:380px;max-width:calc(100vw - 32px);
-    height:560px;max-height:calc(100vh - 32px);background:#12151d;color:#e7e9ee;border:1px solid #283044;
+  #tutor-panel{position:fixed;right:20px;bottom:20px;z-index:100000;width:460px;max-width:calc(100vw - 32px);
+    height:640px;max-height:calc(100vh - 32px);background:#12151d;color:#e7e9ee;border:1px solid #283044;
     border-radius:16px;display:none;flex-direction:column;overflow:hidden;font-family:ui-sans-serif,system-ui,sans-serif;
-    box-shadow:0 12px 48px rgba(0,0,0,.5)}
+    box-shadow:0 12px 48px rgba(0,0,0,.5);resize:both}
   #tutor-panel.open{display:flex}
-  .tt-head{display:flex;align-items:center;gap:8px;padding:12px 14px;background:#161a24;border-bottom:1px solid #283044}
-  .tt-head b{font-size:14px;flex:1}
-  .tt-icon{width:9px;height:9px;border-radius:50%;background:#6ee7a8}
+  #tutor-panel.max{width:min(960px,calc(100vw - 32px));height:calc(100vh - 32px);resize:none}
+  #tutor-panel.collapsed{height:auto !important;min-height:0;resize:none}
+  #tutor-panel.collapsed .tt-cfg,#tutor-panel.collapsed .tt-body,
+  #tutor-panel.collapsed .tt-sugg,#tutor-panel.collapsed .tt-warn,#tutor-panel.collapsed .tt-foot{display:none}
+  .tt-head{display:flex;align-items:center;gap:8px;padding:12px 14px;background:#161a24;border-bottom:1px solid #283044;cursor:default}
+  .tt-head b{font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tt-icon{width:9px;height:9px;border-radius:50%;background:#6ee7a8;flex:none}
   .tt-x{background:none;border:0;color:#9aa3b2;font-size:18px;cursor:pointer;line-height:1}
-  .tt-gear{background:none;border:0;color:#9aa3b2;font-size:15px;cursor:pointer}
+  .tt-gear,.tt-min,.tt-max{background:none;border:0;color:#9aa3b2;font-size:15px;cursor:pointer;line-height:1}
+  .tt-gear:hover,.tt-min:hover,.tt-max:hover,.tt-x:hover{color:#e7e9ee}
   .tt-cfg{display:none;padding:12px 14px;background:#0e1118;border-bottom:1px solid #283044;font-size:13px}
   .tt-cfg.open{display:block}
   .tt-cfg label{display:block;color:#9aa3b2;margin:8px 0 3px;font-size:12px}
@@ -101,6 +106,28 @@
   .tt-warn{color:#ffb86b;font-size:12px;padding:0 14px 8px}
   .tt-cursor::after{content:'▋';animation:ttblink 1s steps(2) infinite;color:#6ee7a8}
   @keyframes ttblink{0%{opacity:1}50%{opacity:0}}
+  /* rendered-markdown styling (shared by chat bubbles + board) */
+  .md h1,.md h2,.md h3,.md h4,.md .tt-h{margin:10px 0 4px;color:#e7e9ee;font-size:14px;line-height:1.3}
+  .md p{margin:6px 0}
+  .md ul,.md ol{margin:6px 0;padding-left:20px}
+  .md li{margin:3px 0}
+  .md a{color:#5cc8ff}
+  .md blockquote{margin:6px 0;padding:4px 10px;border-left:3px solid #2b5066;background:#0e1626;color:#bcc6d6}
+  .md hr{border:0;border-top:1px solid #283044;margin:10px 0}
+  .md code{background:#0b0d13;padding:1px 5px;border-radius:5px;color:#6ee7a8;font-size:12.5px}
+  .md pre{background:#0b0d13;padding:10px;border-radius:8px;overflow-x:auto;margin:6px 0}
+  .md pre code{background:none;padding:0}
+  /* Q&A board (lives in the page, fills from the tutor) */
+  #tutor-board-panel{grid-column:1/-1;background:#181b24;border:1px solid #232838;border-radius:14px;padding:16px 18px}
+  #tutor-board-panel h2{font-size:15px;margin:0 0 4px;color:#5cc8ff}
+  #tutor-board-panel .tb-sub{font-size:12.5px;color:#9aa3b2;margin-bottom:10px}
+  #tutor-board-panel .tb-clear{float:right;background:#222838;color:#e7e9ee;border:0;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+  #tutor-board{display:flex;flex-direction:column;gap:12px}
+  .tb-empty{color:#6b7689;font-size:13px;padding:10px 0}
+  .tb-card{border:1px solid #283044;border-radius:12px;overflow:hidden;background:#12151d}
+  .tb-q{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;background:#161a24;font-size:13.5px;color:#e7e9ee;font-weight:600}
+  .tb-q .tb-num{color:#5cc8ff;flex:none}
+  .tb-a{padding:10px 14px;font-size:13.5px;color:#c4ccda;line-height:1.55}
   `;
   const style = document.createElement("style"); style.textContent = css; document.head.appendChild(style);
 
@@ -115,6 +142,8 @@
     <div class="tt-head">
       <span class="tt-icon"></span><b>Tutor · ${escapeHtml(CFG.caseTitle)}</b>
       <button class="tt-gear" title="Settings">⚙</button>
+      <button class="tt-max" title="Maximize / restore">⤢</button>
+      <button class="tt-min" title="Collapse / expand">▁</button>
       <button class="tt-x" title="Close">✕</button>
     </div>
     <div class="tt-cfg">
@@ -172,12 +201,33 @@
 
   // ---- open/close ---------------------------------------------------------
   fab.onclick = () => {
-    panel.classList.add("open"); fab.style.display = "none"; loadCfg();
+    panel.classList.add("open"); fab.style.display = "none"; loadCfg(); applyWinState();
     if (!localStorage.getItem(LS.key)) cfgBox.classList.add("open");
     input.focus();
   };
   $(".tt-x").onclick = () => { panel.classList.remove("open"); fab.style.display = ""; };
   $(".tt-gear").onclick = () => cfgBox.classList.toggle("open");
+
+  // ---- window controls: maximize + collapse (persisted) -------------------
+  const LS_MAX = "ftlearn_max", LS_COL = "ftlearn_collapsed";
+  function applyWinState() {
+    panel.classList.toggle("max", localStorage.getItem(LS_MAX) === "1");
+    panel.classList.toggle("collapsed", localStorage.getItem(LS_COL) === "1");
+    $(".tt-min").textContent = panel.classList.contains("collapsed") ? "▢" : "▁";
+  }
+  $(".tt-max").onclick = () => {
+    const on = !panel.classList.contains("max");
+    localStorage.setItem(LS_MAX, on ? "1" : "0");
+    if (on) localStorage.setItem(LS_COL, "0");      // maximizing un-collapses
+    panel.style.width = ""; panel.style.height = ""; // drop any manual resize
+    applyWinState();
+  };
+  $(".tt-min").onclick = () => {
+    const on = !panel.classList.contains("collapsed");
+    localStorage.setItem(LS_COL, on ? "1" : "0");
+    if (on) localStorage.setItem(LS_MAX, "0");       // collapsing un-maximizes
+    applyWinState();
+  };
 
   // ---- suggestions --------------------------------------------------------
   (CFG.suggestions || []).forEach(s => {
@@ -186,6 +236,43 @@
     c.onclick = () => { input.value = s; send(); };
     suggBox.appendChild(c);
   });
+
+  // ---- Q&A board: pins each answer onto the PAGE as study notes -----------
+  // Lives in the page flow (inside .wrap if present), persists per page URL.
+  const BOARD_KEY = "ftlearn_board_" + location.pathname;
+  let board = [];
+  try { board = JSON.parse(localStorage.getItem(BOARD_KEY) || "[]"); } catch { board = []; }
+
+  const boardPanel = document.createElement("section");
+  boardPanel.id = "tutor-board-panel";
+  boardPanel.innerHTML =
+    `<button class="tb-clear" title="Clear this board">Clear board</button>` +
+    `<h2>🧠 Your Q&amp;A board</h2>` +
+    `<div class="tb-sub">Every answer you get from the 💬 tutor gets pinned here as a study note — ` +
+    `it grows from <em>your</em> questions and is saved for this page.</div>` +
+    `<div id="tutor-board"></div>`;
+  const wrap = document.querySelector(".wrap");
+  if (wrap) wrap.appendChild(boardPanel); else document.body.insertBefore(boardPanel, fab);
+  const boardEl = boardPanel.querySelector("#tutor-board");
+  boardPanel.querySelector(".tb-clear").onclick = () => {
+    if (!board.length || confirm("Clear all pinned Q&A notes for this page?")) {
+      board = []; saveBoard(); renderBoard();
+    }
+  };
+
+  function saveBoard() { try { localStorage.setItem(BOARD_KEY, JSON.stringify(board)); } catch {} }
+  function renderBoard() {
+    if (!board.length) {
+      boardEl.innerHTML = `<div class="tb-empty">No notes yet. Open the tutor (💬, bottom-right) and ask about this page.</div>`;
+      return;
+    }
+    boardEl.innerHTML = board.map((c, i) =>
+      `<div class="tb-card"><div class="tb-q"><span class="tb-num">Q${i + 1}.</span>` +
+      `<span>${escapeHtml(c.q)}</span></div>` +
+      `<div class="tb-a md">${renderMd(c.a)}</div></div>`).join("");
+  }
+  function addToBoard(q, a) { board.push({ q, a, t: Date.now() }); saveBoard(); renderBoard(); }
+  renderBoard();
 
   // ---- send ---------------------------------------------------------------
   input.addEventListener("keydown", (e) => {
@@ -221,6 +308,7 @@
       else await streamOpenAI(key, model, onDelta);
       botEl.classList.remove("tt-cursor");
       history.push({ role: "assistant", content: full });
+      if (full.trim()) addToBoard(text, full);   // pin this Q&A onto the page board
     } catch (err) {
       botEl.classList.remove("tt-cursor");
       botEl.innerHTML = renderMd("⚠️ **Error:** " + (err && err.message ? err.message : String(err)) +
@@ -305,28 +393,61 @@
   function escapeHtml(s) { return s.replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
-  function renderMd(src) {
-    // fenced code blocks
-    const blocks = [];
-    let s = src.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-      blocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`);
-      return ` ${blocks.length - 1} `;
-    });
-    s = escapeHtml(s)
+  // Inline markdown: code, bold, italic, links. Input is ALREADY html-escaped.
+  function inlineMd(s) {
+    return s
       .replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`)
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-      .replace(/^### (.*)$/gm, "<b>$1</b>")
-      .replace(/^## (.*)$/gm, "<b>$1</b>")
-      .replace(/^[-*] (.*)$/gm, "• $1")
-      .replace(/\n/g, "<br>");
-    s = s.replace(/ (\d+) /g, (_, i) => blocks[+i]);
-    return s;
+      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+               '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  }
+
+  // Block-level markdown renderer (no deps): fenced code, headings,
+  // ordered/unordered lists, blockquotes, hr, and paragraphs.
+  function renderMd(src) {
+    const blocks = [];
+    src = src.replace(/```[ \t]*([\w+-]*)\r?\n?([\s\S]*?)```/g, (_, lang, code) => {
+      blocks.push(`<pre><code>${escapeHtml(code.replace(/\r?\n$/, ""))}</code></pre>`);
+      return ` B${blocks.length - 1} `;
+    });
+
+    const lines = escapeHtml(src).split(/\r?\n/);
+    let html = "", list = null;
+    const closeList = () => { if (list) { html += `</${list}>`; list = null; } };
+
+    for (let raw of lines) {
+      const line = raw.replace(/ B(\d+) /g, (_, i) => blocks[+i]);
+      if (/<pre>/.test(line)) { closeList(); html += line; continue; }
+      if (/^\s*$/.test(line)) { closeList(); continue; }
+      if (/^(---|\*\*\*|___)\s*$/.test(line)) { closeList(); html += "<hr>"; continue; }
+
+      let m;
+      if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
+        closeList(); const lvl = Math.min(m[1].length, 4);
+        html += `<h${lvl} class="tt-h">${inlineMd(m[2])}</h${lvl}>`; continue;
+      }
+      if ((m = line.match(/^\s*[-*+]\s+(.*)$/))) {
+        if (list !== "ul") { closeList(); html += "<ul>"; list = "ul"; }
+        html += `<li>${inlineMd(m[1])}</li>`; continue;
+      }
+      if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
+        if (list !== "ol") { closeList(); html += "<ol>"; list = "ol"; }
+        html += `<li>${inlineMd(m[1])}</li>`; continue;
+      }
+      if ((m = line.match(/^\s*&gt;\s?(.*)$/))) {
+        closeList(); html += `<blockquote>${inlineMd(m[1])}</blockquote>`; continue;
+      }
+      closeList(); html += `<p>${inlineMd(line)}</p>`;
+    }
+    closeList();
+    return html;
   }
 
   function addMsg(who, text) {
     const el = document.createElement("div");
-    el.className = "tt-msg " + (who === "user" ? "tt-user" : "tt-bot");
+    el.className = "tt-msg " + (who === "user" ? "tt-user" : "tt-bot md");
     el.innerHTML = who === "user" ? escapeHtml(text) : renderMd(text);
     body.appendChild(el); body.scrollTop = body.scrollHeight;
     return el;

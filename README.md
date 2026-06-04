@@ -51,6 +51,12 @@ Every `animation.html` has a **floating "💬 Ask tutor" button**. Click it, pas
 (⚙ settings), and ask questions about whatever you're looking at — the tutor is given the page's context
 so its answers fit the lesson.
 
+- **Resizable window:** drag the bottom-right corner, **⤢ maximize**, or **▁ collapse** to just the title
+  bar. Your size/state is remembered.
+- **Readable answers:** replies render as **Markdown** (headings, lists, code blocks, links).
+- **🧠 Q&A board:** every answer is pinned onto the page as a study note that builds from *your* questions
+  and is saved per page (with a **Clear board** button).
+
 - **Bring your own key:** **Anthropic (Claude)** by default, or **OpenAI**. Pick the provider in ⚙.
 - **Your key stays local.** It's saved in your browser's `localStorage` on your machine and sent *only*
   to the provider you choose (Claude calls use Anthropic's official direct-browser-access header). It is
