@@ -28,6 +28,19 @@
   .note { font-size:13px; color:var(--muted); margin-top:10px; }
   code { background:#0b0d13; padding:1px 5px; border-radius:5px; color:var(--good); }
   .big { font-size:13px; }
+  details.theory { margin-top:12px; border:1px solid #28304a; border-radius:10px; background:#0e1118; }
+  details.theory > summary { cursor:pointer; padding:9px 12px; font-size:13px; color:var(--accent); font-weight:600; list-style:none; }
+  details.theory > summary::-webkit-details-marker { display:none; }
+  details.theory > summary::before { content:"▶ "; font-size:11px; }
+  details.theory[open] > summary::before { content:"▼ "; }
+  details.theory .tbody { padding:4px 14px 14px; font-size:13px; color:#c4ccda; }
+  details.theory .tbody h4 { margin:12px 0 4px; color:var(--ink); font-size:13.5px; }
+  details.theory .tbody p { margin:6px 0; }
+  details.theory .tbody b.term { color:var(--good); }
+  details.theory .tbody .btnref { color:var(--accent2); font-weight:600; }
+  details.theory .tbody ul { margin:6px 0; padding-left:18px; }
+  details.theory .tbody li { margin:3px 0; }
+  .formula { font-family:ui-monospace,monospace; background:#0b0d13; padding:2px 6px; border-radius:5px; color:#9fe6c0; }
 </style>
 </head>
 <body>
@@ -62,6 +75,39 @@
       <span class="pill" style="background:#10303f;color:var(--accent)">downhill = −learning_rate × gradient</span>.
       <br>• Tiny LR → safe but slow. • Huge LR → it overshoots and bounces (this is why fine-tuning uses a <b>small</b> LR).
     </div>
+    <details class="theory"><summary>📖 What is this really? (loss, gradient, learning rate)</summary>
+    <div class="tbody">
+      <h4>What is "the model" here?</h4>
+      <p>A model is just a bunch of numbers called <b class="term">weights</b> (or parameters). To "train"
+      it means to find weight values that make its predictions correct. In this panel we pretend there's a
+      single weight — the ball's horizontal position <span class="formula">x</span>.</p>
+
+      <h4>What is the curve (the loss landscape)?</h4>
+      <p>The <b class="term">loss</b> measures how <i>wrong</i> the model is — higher = more wrong. For every
+      possible weight value, there's a loss. Plotting loss vs. weight gives this curve, the
+      <b class="term">loss landscape</b>. Training = finding the lowest point (smallest loss = best model).</p>
+
+      <h4>What is the orange arrow (the gradient)?</h4>
+      <p>The <b class="term">gradient</b> is the slope of the curve under the ball — it points in the
+      direction loss <i>increases</i>. So to reduce loss we step the <i>opposite</i> way (downhill). That's
+      literally the update rule, called <b class="term">gradient descent</b>:</p>
+      <p style="text-align:center"><span class="formula">new_weight = old_weight − learning_rate × gradient</span></p>
+
+      <h4>What does the <span class="btnref">Learning rate</span> slider do, and why?</h4>
+      <ul>
+        <li><b>Small LR</b> → each step is a baby step. Safe, never overshoots, but slow (many steps).</li>
+        <li><b>Large LR</b> → each step is a big jump. Fast at first, but it can leap <i>past</i> the bottom
+        and bounce back and forth, or even climb out — unstable.</li>
+      </ul>
+      <p><b>Why it matters for fine-tuning:</b> a pre-trained model is already near a good point. A big LR
+      would knock it far away and destroy what it knew. So fine-tuning deliberately uses a <b>small</b> LR
+      to nudge gently. (Try it: set LR high and watch the ball bounce instead of settle.)</p>
+
+      <h4>What does <span class="btnref">▶ Train</span> show?</h4>
+      <p>It repeatedly applies the update rule (one step every frame) so you <i>see</i> the ball roll
+      downhill. The "step" counter is how many updates have happened; "loss" is the current height. Real
+      training is exactly this, just with millions of weights instead of one.</p>
+    </div></details>
   </div>
 
   <!-- RIGHT: pretrain vs finetune -->
@@ -79,6 +125,46 @@
       <b>Fine-tune:</b> start from the <span style="color:var(--good)">already-good weights</span> and take a <b>few small steps</b> to the new minimum. Cheap, fast — the whole point.
     </div>
     <div class="legend" id="ftmsg">Click ① then ② then ③.</div>
+    <details class="theory"><summary>📖 What do the 3 buttons mean, and what happens when I click?</summary>
+    <div class="tbody">
+      <p>This panel tells a <b>story in three clicks</b>. Same downhill idea as Panel 1, but now it shows the
+      difference between <i>pre-training</i> and <i>fine-tuning</i>. The curve is again the loss landscape;
+      the ball is the model's weights.</p>
+
+      <h4><span class="btnref">① Pre-train (from scratch)</span> — what is "pre-training"?</h4>
+      <p><b class="term">Pre-training</b> = teaching a model from <b>random</b> weights on a big, general
+      task until it's good. It's done <b>once</b>, it's <b>expensive</b> (lots of data + compute), and it's
+      what companies do to create base models like Llama.</p>
+      <p><b>When you click ①:</b> the ball starts at a random spot (orange) and takes <b>many big steps</b>
+      downhill until it reaches the bottom (a good model). You're watching a model learn a task from
+      nothing. That bottom point = the "pre-trained weights."</p>
+
+      <h4><span class="btnref">② New task arrives ↘</span> — what changes?</h4>
+      <p>The real world shifts: new data, a new city, a new sensor, a new instruction style. We model that
+      by <b>moving the whole landscape sideways</b>. Now the old bottom (where the ball sits) is no longer the
+      lowest point — the model is slightly wrong for the <i>new</i> task.</p>
+      <p><b>When you click ②:</b> the curve shifts and a small marker shows the new minimum. The ball
+      doesn't move yet — it's still at the <i>old</i> solution, which is now a bit off. This is the moment a
+      fine-tuning job begins.</p>
+
+      <h4><span class="btnref">③ Fine-tune</span> — what is "fine-tuning"?</h4>
+      <p><b class="term">Fine-tuning</b> = continue training the <b>already-good</b> model on the new task,
+      using a <b>small</b> learning rate for a <b>few</b> steps. You're not starting over — you're adapting.</p>
+      <p><b>When you click ③:</b> the ball (now green) takes a <b>few small steps</b> from the old solution to
+      the new minimum. Notice it gets there in far fewer steps than pre-training (①) needed. <b>That speed/cost
+      saving is the entire reason fine-tuning exists.</b></p>
+
+      <h4>So what was "trained"? What does clicking show?</h4>
+      <ul>
+        <li>① trains a model from scratch → expensive, many steps.</li>
+        <li>② doesn't train — it just shows the task changing under the model.</li>
+        <li>③ trains the <i>same</i> weights a little more → cheap, few steps, reaches the new best.</li>
+      </ul>
+      <p><b>The hidden danger (Case 05):</b> after ③ adapts to the new task, is the model still good at the
+      <i>old</i> task (the original bottom)? Often not — moving to the new minimum can make it worse at the
+      old one. That's <b class="term">catastrophic forgetting</b>, the core problem of your self-driving
+      capstone.</p>
+    </div></details>
   </div>
 
   <!-- BOTTOM: which weights move -->
@@ -96,6 +182,32 @@
       Full fine-tuning updates <b>every</b> weight (lots of memory + compute). LoRA freezes the grid and
       learns a tiny side-path instead → that's the <code>peft</code> magic you'll implement in Case 02.
     </div>
+    <details class="theory"><summary>📖 What are these squares, and what do the buttons show?</summary>
+    <div class="tbody">
+      <h4>What is the grid?</h4>
+      <p>Each little square is <b>one weight</b> of a model (a model has from thousands to billions of them,
+      usually organized as matrices). Color = whether that weight was <b>changed</b> in the latest training
+      step: <span style="color:var(--accent2)">orange = updated</span>, dark = left alone.</p>
+
+      <h4><span class="btnref">Full fine-tune</span> — what does it show?</h4>
+      <p>Almost every square flickers orange: full fine-tuning lets the optimizer change <b>all</b> the
+      weights. Most accurate in principle, but you must store gradients + optimizer state for <i>every</i>
+      weight → huge memory, and you save a whole new copy of the model per task.</p>
+
+      <h4><span class="btnref">LoRA</span> — what does it show?</h4>
+      <p>Only a thin strip stays orange: LoRA <b>freezes</b> the big grid (no orange there) and trains a tiny
+      add-on instead — here drawn as the strip, only ~4% of the weights. Far less memory, and the adapter is
+      so small you can keep one per task.</p>
+
+      <h4>Why does that matter?</h4>
+      <ul>
+        <li><b>Cost/efficiency:</b> training 4% instead of 100% is what lets a 7B model fine-tune on one GPU.</li>
+        <li><b>Forgetting:</b> the frozen grid keeps the original knowledge intact — you can't overwrite what
+        you never change. (More in Case 06.)</li>
+      </ul>
+      <p>You build this for real in <b>Case 02</b>. (The flickering is illustrative — it re-randomizes which
+      weights "update" each tick just to convey "many vs few," not a real training run.)</p>
+    </div></details>
   </div>
 
 </div>
@@ -191,5 +303,24 @@ loopGrid();
 
 window.addEventListener('resize',()=>{ [land,ft,grid].forEach(c=>{c.width=0;}); location.reload(); });
 </script>
+
+<!-- AI tutor: ask questions about this page. Bring your own API key (Claude or OpenAI). -->
+<script>
+window.TUTOR_CONFIG = {
+  caseTitle: "Case 01 · Foundations",
+  context: "Interactive page on the basics of fine-tuning. Panel 1: gradient descent on a 1-D loss "
+    + "landscape (a ball rolling downhill; learning-rate slider shows tiny=slow, huge=overshoot). "
+    + "Panel 2: pre-train vs fine-tune as the same hill with different start points; a new task shifts "
+    + "the minimum and fine-tuning reaches it in a few small steps. Panel 3: full fine-tuning (updates "
+    + "~100% of weights) vs LoRA (updates ~4%). Core ideas: loss surfaces, learning rate, warm start vs "
+    + "cold start, and a first hint of catastrophic forgetting.",
+  suggestions: [
+    "Why does a warm start beat training from scratch?",
+    "What exactly is the learning rate doing here?",
+    "How does this connect to catastrophic forgetting?"
+  ]
+};
+</script>
+<script src="../assets/tutor.js"></script>
 </body>
 </html>

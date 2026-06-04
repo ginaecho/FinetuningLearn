@@ -114,6 +114,35 @@ Or just open the `.ipynb` files in **VS Code** (install the Jupyter extension) �
 
 ---
 
+## 7. In-page AI tutor (optional)
+
+The interactive `animation.html` pages include a **💬 Ask tutor** button so you can ask questions
+without leaving the lesson. It calls an LLM API **directly from your browser** — no server, works from a
+`file://` page.
+
+**Setup (once):**
+1. Open any `cases/*/animation.html` in your browser.
+2. Click **💬 Ask tutor → ⚙** and choose a provider:
+   - **Anthropic (Claude)** — get a key at <https://console.anthropic.com/settings/keys>
+   - **OpenAI (GPT)** — get a key at <https://platform.openai.com/api-keys>
+3. Paste the key and pick a model (defaults: `claude-sonnet-4-6` / `gpt-4o-mini`). Cheaper option:
+   `claude-haiku-4-5-20251001`.
+4. Ask away. Replies stream in and the tutor knows which lesson page you're on.
+
+**How your key is handled (read this):**
+- Stored in your browser's `localStorage` on **this device only**.
+- Sent **only** to the provider you select. Anthropic requests use the official
+  `anthropic-dangerous-direct-browser-access` header (that's the supported way to call the API from a
+  browser).
+- It is **never** written into the HTML files and **never** committed to git.
+- 🔒 Don't enter a key on a shared computer. The repo's `.gitignore` also blocks common key files.
+
+**Why a browser call is OK here:** these are personal, local learning pages. For a real app you'd proxy
+the key through a backend instead of exposing it client-side — but for a single-user local tutor this is
+the simplest setup.
+
+---
+
 ## Troubleshooting
 
 - **`bitsandbytes` errors on Mac/CPU** → expected; it's GPU-only. Skip it; do QLoRA on Colab.
