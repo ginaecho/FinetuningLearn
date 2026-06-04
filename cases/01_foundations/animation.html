@@ -283,6 +283,77 @@
     </div></details>
   </div>
 
+  <!-- BOTTOM: LoRA forward pass, animated -->
+  <div class="panel" style="grid-column:1 / -1;">
+    <h2>5 · LoRA forward pass — <span class="formula">y = Wx + (B·A)x·(α/r)</span>, animated</h2>
+    <canvas id="loraFwd" height="300"></canvas>
+    <div class="row">
+      <button id="loraTrain">▶ Train (grow B from 0)</button>
+      <button id="loraMerge" class="ghost">Merge into W</button>
+      <button id="loraReset" class="ghost">Reset</button>
+    </div>
+    <div class="row">
+      <label>Training progress</label>
+      <input id="prog" type="range" min="0" max="100" step="1" value="0">
+      <span class="val" id="progv">0%</span>
+    </div>
+    <div class="row">
+      <label>alpha (α)</label>
+      <input id="alpha" type="range" min="1" max="32" step="1" value="16">
+      <span class="val" id="alphav">16</span>
+      <label style="min-width:70px">rank (r)</label>
+      <input id="rank" type="range" min="1" max="16" step="1" value="8">
+      <span class="val" id="rankv">8</span>
+    </div>
+    <div class="legend" id="loramsg"></div>
+    <div class="note">
+      Two paths feed the sum. <b style="color:#8b97ad">Top = W</b> (frozen, gray) gives <code>Wx</code>.
+      <b style="color:#6ee7a8">Bottom = A then B</b> (trained, green) gives <code>(B·A)x·(α/r)</code>.
+      Watch <b>B fill in from zero</b> as you train — at step 0 it adds nothing, so <code>y = Wx</code> = the
+      pre-trained model. Hit <b>Merge</b> to fold both into one matrix.
+    </div>
+    <details class="theory"><summary>📖 What is each part of y = Wx + (B·A)x·(α/r)?</summary>
+    <div class="tbody">
+      <h4>What are the two paths?</h4>
+      <p>This is the <b class="term">forward pass</b> of a LoRA layer — how an input <span class="formula">x</span>
+      becomes an output <span class="formula">y</span>. The output is the <b>sum</b> of two paths:</p>
+      <ul>
+        <li><b class="term">Wx</b> (top, cyan→gray): the original pre-trained weight matrix <b>W</b> times the
+        input. This is what the model did <i>before</i> any fine-tuning.</li>
+        <li><b class="term">(B·A)x·(α/r)</b> (bottom, green): a small learned correction. <b>A</b> squeezes
+        the input down to <b>r</b> numbers (the bottleneck), <b>B</b> expands it back up, and the result is
+        scaled by <span class="formula">α/r</span>.</li>
+      </ul>
+
+      <h4>Why is W gray / "frozen"?</h4>
+      <p><b class="term">Frozen</b> means the optimizer never changes it — gradients skip it. Only
+      <b style="color:#6ee7a8">A and B</b> are trained. That's why LoRA touches so few parameters: the giant
+      W just sits there, reused as-is.</p>
+
+      <h4>Why does B start at 0? (drag <span class="btnref">Training progress</span> to 0)</h4>
+      <p>If <b>B = 0</b>, then <span class="formula">B·A = 0</span>, so the bottom path contributes
+      <b>nothing</b>: <span class="formula">y = Wx + 0 = Wx</span>. At step 0 the LoRA model behaves
+      <i>exactly</i> like the pre-trained model — a <b>safe start</b> with no sudden jump. As training
+      proceeds, B grows away from zero (watch its cells fill green) and the green correction kicks in.</p>
+
+      <h4>What do <span class="btnref">α</span> and <span class="btnref">r</span> do?</h4>
+      <p><span class="formula">α/r</span> is a volume knob on the correction. Bigger <b>α</b> = stronger
+      adapter. Dividing by the rank <b>r</b> keeps the strength stable when you change r, so you can tune
+      them somewhat independently. Slide them and watch the <code>×(α/r)</code> tag and the green bar change.</p>
+
+      <h4>What does <span class="btnref">Merge into W</span> do?</h4>
+      <p>After training you can compute <span class="formula">W' = W + B·A·(α/r)</span> <b>once</b> and fold
+      the adapter back into the weight matrix. Now there's a single matrix again — same output, but
+      <b>zero</b> extra work at inference time (no second path). The bars show the green correction getting
+      absorbed into one combined bar.</p>
+
+      <h4>How this connects to your capstone</h4>
+      <p>Each new batch of self-driving data can become its own tiny B·A adapter on top of a frozen W. Cheap
+      to train, cheap to store, and because W never changes, the original knowledge can't be overwritten —
+      the first real defense against catastrophic forgetting (Cases 05–06).</p>
+    </div></details>
+  </div>
+
 </div>
 
 <script>
@@ -433,7 +504,131 @@ document.getElementById('breset').onclick=()=>{ clearInterval(bAnim); bAnim=null
 bsEl.oninput=()=>{ document.getElementById('bsv').textContent=bsEl.value; if(!bAnim) drawBatch(); };
 drawBatch();
 
-window.addEventListener('resize',()=>{ [land,ft,grid,batch].forEach(c=>{c.width=0;}); location.reload(); });
+// ---------- Panel 5: LoRA forward pass  y = Wx + (B·A)x·(α/r) ----------
+const lora=document.getElementById('loraFwd'), xc=lora.getContext('2d'); fitCanvas(lora);
+let loraProg=0, loraMerged=false, loraT=0, trainTimer=null;
+const progEl=document.getElementById('prog'), alphaEl=document.getElementById('alpha'), rankEl=document.getElementById('rank');
+const loraScale=()=> (+alphaEl.value)/(+rankEl.value);
+const scaledMag=()=> (loraProg/100)*loraScale();   // |(B·A)x·(α/r)|, with |Wx| treated as 1 unit
+function cellGrid(x,y,rows,cols,cell,colorFn){
+  const DPR=devicePixelRatio;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    xc.fillStyle='#10131b'; xc.fillRect(x+c*cell,y+r*cell,cell-1.5*DPR,cell-1.5*DPR);
+    const col=colorFn(r,c); if(col){ xc.fillStyle=col; xc.fillRect(x+c*cell,y+r*cell,cell-1.5*DPR,cell-1.5*DPR); }
+  }
+}
+function drawLora(){
+  const DPR=devicePixelRatio, W=lora.width, H=lora.height; xc.clearRect(0,0,W,H);
+  const cyT=H*0.30, cyB=H*0.72, cyM=H*0.5;
+  const cell=11*DPR, dR=Math.min(+rankEl.value,4);
+  const sMag=scaledMag();
+  const botAlpha = loraMerged ? 0 : Math.max(0.07, loraProg/100);
+
+  const xN={x:W*0.05,y:cyM};
+  const wg={x:W*0.18,y:cyT-3*cell,rows:6,cols:6,w:6*cell};
+  const ag={x:W*0.14,y:cyB-(dR*cell)/2,rows:dR,cols:6,w:6*cell};
+  const bg={x:W*0.30,y:cyB-3*cell,rows:6,cols:dR,w:dR*cell};
+  const sum={x:W*0.50,y:cyM};
+  const yN={x:W*0.60,y:cyM};
+
+  function link(x1,y1,x2,y2,color,alpha,phase){
+    xc.globalAlpha=alpha; xc.strokeStyle='#26314a'; xc.lineWidth=1.5*DPR;
+    xc.beginPath(); xc.moveTo(x1,y1); xc.lineTo(x2,y2); xc.stroke();
+    const p=((loraT*0.015)+phase)%1;
+    xc.fillStyle=color; xc.beginPath(); xc.arc(x1+(x2-x1)*p,y1+(y2-y1)*p,3*DPR,0,7); xc.fill();
+    xc.globalAlpha=1;
+  }
+  // connectors
+  link(xN.x+9*DPR,xN.y, wg.x, cyT, '#5cc8ff',1,0);
+  link(wg.x+wg.w, cyT, sum.x, sum.y, '#5cc8ff',1,0.5);
+  if(!loraMerged){
+    link(xN.x+9*DPR,xN.y, ag.x, cyB, '#6ee7a8',botAlpha,0.2);
+    link(ag.x+ag.w, cyB, bg.x, cyB, '#6ee7a8',botAlpha,0.45);
+    link(bg.x+bg.w, cyB, sum.x, sum.y, '#6ee7a8',botAlpha,0.7);
+  }
+
+  // input node
+  xc.fillStyle='#5cc8ff'; xc.beginPath(); xc.arc(xN.x,xN.y,9*DPR,0,7); xc.fill();
+  xc.fillStyle='#04222f'; xc.font=`bold ${12*DPR}px sans-serif`; xc.textAlign='center';
+  xc.fillText('x',xN.x,xN.y+4*DPR);
+
+  // W grid
+  const wTint = loraMerged ? Math.min(1,sMag) : 0;
+  cellGrid(wg.x,wg.y,wg.rows,wg.cols,cell,(r,c)=>{
+    if(loraMerged){ const t=((r*3+c*5)%3)/2; return `rgba(${90-30*wTint},${108+90*wTint},${128+30*wTint},${0.55+0.3*t})`; }
+    return `rgba(95,105,125,${0.4+0.45*(((r*7+c*3)%3)/2)})`;
+  });
+  xc.fillStyle=loraMerged?'#6ee7a8':'#8b97ad'; xc.font=`${11*DPR}px sans-serif`; xc.textAlign='center';
+  xc.fillText(loraMerged?"W' (merged)":'W  (frozen)', wg.x+wg.w/2, wg.y-6*DPR);
+
+  if(!loraMerged){
+    xc.globalAlpha=botAlpha;
+    // A grid — always filled green
+    cellGrid(ag.x,ag.y,ag.rows,ag.cols,cell,(r,c)=>`rgba(110,231,168,${0.5+0.4*((r*5+c)%2)})`);
+    xc.fillStyle='#6ee7a8'; xc.fillText('A (r×k)', ag.x+ag.w/2, ag.y-6*DPR);
+    xc.globalAlpha=1;
+    // B grid — fills from zero as training progresses
+    const fill=loraProg/100;
+    cellGrid(bg.x,bg.y,bg.rows,bg.cols,cell,(r,c)=>{
+      const cf=Math.max(0,Math.min(1,fill - 0.06*((r+c)%3)));
+      return cf<=0 ? null : `rgba(110,231,168,${0.22+0.68*cf})`;
+    });
+    xc.fillStyle='#6ee7a8'; xc.fillText('B (d×r)', bg.x+bg.w/2, bg.y-6*DPR);
+    xc.fillStyle='#9aa3b2'; xc.font=`${10*DPR}px sans-serif`;
+    xc.fillText(loraProg===0?'B = 0':'B grew', bg.x+bg.w/2, bg.y+bg.rows*cell+13*DPR);
+    // ×(α/r) tag
+    xc.globalAlpha=botAlpha; xc.fillStyle='#fbbf24'; xc.font=`${11*DPR}px monospace`;
+    xc.fillText(`×(α/r)=${loraScale().toFixed(2)}`, (bg.x+bg.w+sum.x)/2, cyB-9*DPR);
+    xc.globalAlpha=1;
+  }
+
+  // sum node
+  xc.fillStyle='#ff8a5c'; xc.beginPath(); xc.arc(sum.x,sum.y,11*DPR,0,7); xc.fill();
+  xc.fillStyle='#2a1405'; xc.font=`bold ${15*DPR}px sans-serif`; xc.textAlign='center';
+  xc.fillText('+',sum.x,sum.y+5*DPR);
+  link(sum.x+11*DPR, sum.y, yN.x-9*DPR, yN.y, '#ff8a5c',1,0.3);
+  // y node
+  xc.fillStyle='#ff8a5c'; xc.beginPath(); xc.arc(yN.x,yN.y,9*DPR,0,7); xc.fill();
+  xc.fillStyle='#2a1405'; xc.font=`bold ${12*DPR}px sans-serif`; xc.fillText('y',yN.x,yN.y+4*DPR);
+
+  // contribution bars: y = Wx + adapter
+  const barX=W*0.70, barY0=H*0.26, barH=16*DPR, gap=26*DPR;
+  const L0=Math.min(W*0.11,130*DPR), Ladp=L0*sMag;
+  xc.textAlign='left'; xc.font=`${11*DPR}px sans-serif`;
+  xc.fillStyle='#9aa3b2'; xc.fillText('Wx  (base output, fixed)', barX, barY0-6*DPR);
+  xc.fillStyle='#5cc8ff'; xc.fillRect(barX,barY0,L0,barH);
+  xc.fillStyle='#9aa3b2'; xc.fillText('(B·A)x·(α/r)  — learned change', barX, barY0+gap-6*DPR);
+  xc.fillStyle='#6ee7a8'; xc.fillRect(barX,barY0+gap,Math.max(0,Ladp),barH);
+  xc.fillStyle='#9aa3b2'; xc.fillText('y = Wx + adapter', barX, barY0+2*gap-6*DPR);
+  if(loraMerged){
+    xc.fillStyle='#8fe3c0'; xc.fillRect(barX,barY0+2*gap,L0+Ladp,barH);
+    xc.fillStyle='#0e1118'; xc.font=`${9*DPR}px sans-serif`; xc.fillText("W'x — one matrix", barX+5*DPR, barY0+2*gap+11*DPR);
+  } else {
+    xc.fillStyle='#5cc8ff'; xc.fillRect(barX,barY0+2*gap,L0,barH);
+    xc.fillStyle='#6ee7a8'; xc.fillRect(barX+L0,barY0+2*gap,Math.max(0,Ladp),barH);
+  }
+
+  let m;
+  if(loraMerged) m="Merged: <b>W' = W + B·A·(α/r)</b>. One matrix — identical output, <b>zero</b> extra inference cost.";
+  else if(loraProg===0) m="Step 0: <b>B = 0</b> → (B·A)x = 0 → y = <b>Wx</b>, exactly the pre-trained model. Safe start.";
+  else m=`Training: B grew from 0; adapter adds (B·A)x·(α/r), α/r=<b>${loraScale().toFixed(2)}</b>. Only <b style="color:#6ee7a8">A, B</b> train — <b style="color:#8b97ad">W</b> stays frozen.`;
+  document.getElementById('loramsg').innerHTML=m;
+}
+progEl.oninput=()=>{ loraProg=+progEl.value; loraMerged=false; document.getElementById('progv').textContent=loraProg+'%'; };
+alphaEl.oninput=()=>{ document.getElementById('alphav').textContent=alphaEl.value; };
+rankEl.oninput =()=>{ document.getElementById('rankv').textContent=rankEl.value; };
+document.getElementById('loraTrain').onclick=()=>{
+  if(trainTimer) return; loraMerged=false; if(loraProg>=100) loraProg=0;
+  trainTimer=setInterval(()=>{ loraProg=Math.min(100,loraProg+2); progEl.value=loraProg;
+    document.getElementById('progv').textContent=loraProg+'%';
+    if(loraProg>=100){ clearInterval(trainTimer); trainTimer=null; } },40);
+};
+document.getElementById('loraMerge').onclick=()=>{ if(loraProg>0) loraMerged=true; };
+document.getElementById('loraReset').onclick=()=>{ if(trainTimer){clearInterval(trainTimer);trainTimer=null;}
+  loraProg=0; progEl.value=0; document.getElementById('progv').textContent='0%'; loraMerged=false; };
+setInterval(()=>{ loraT++; drawLora(); },40);
+
+window.addEventListener('resize',()=>{ [land,ft,grid,batch,lora].forEach(c=>{c.width=0;}); location.reload(); });
 </script>
 
 <!-- AI tutor: ask questions about this page. Bring your own API key (Claude or OpenAI). -->
@@ -447,13 +642,18 @@ window.TUTOR_CONFIG = {
     + "~100% of weights) vs LoRA (updates ~4%). Panel 4: batches & epochs — 24 samples fed to the model a "
     + "batch at a time; one full pass = one epoch; each batch = one weight update (step); "
     + "steps_per_epoch = dataset_size / batch_size; smaller batch = more, noisier steps (stochastic gradient "
-    + "descent). Core ideas: loss surfaces, learning rate, warm vs cold start, batch/epoch/step training "
-    + "loop, and a first hint of catastrophic forgetting.",
+    + "descent). Panel 5: animated LoRA forward pass y = Wx + (B·A)x·(α/r). W is a frozen gray grid; A and B "
+    + "are trained green grids; B starts at zero (its cells fill in as training progresses) so at step 0 the "
+    + "output equals the pre-trained model (y = Wx). Sliders for training progress, alpha, and rank control "
+    + "the α/r scale, shown as contribution bars (Wx + adapter = y). A Merge button folds the adapter into a "
+    + "single matrix W' = W + B·A·(α/r) for zero extra inference cost. Core ideas: loss surfaces, learning "
+    + "rate, warm vs cold start, batch/epoch/step training loop, the LoRA equation, and a first hint of "
+    + "catastrophic forgetting.",
   suggestions: [
     "Explain batch vs epoch vs step simply.",
     "Why does a warm start beat training from scratch?",
-    "What does the learning rate actually do?",
-    "How does this connect to catastrophic forgetting?"
+    "Why does B start at zero in LoRA?",
+    "What does merging the adapter into W actually do?"
   ]
 };
 </script>
