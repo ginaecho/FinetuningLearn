@@ -1,4 +1,4 @@
-# FinetuningLearn
+# Learn Finetuning
 
 Learning fine-tuning from real hands-on examples — understand the theory, then implement it, step by step.
 
