@@ -1,0 +1,21 @@
+{
+  "title": "Learn Finetuning",
+  "description": "Learn Finetuning is a hands-on educational repository for understanding and implementing fine-tuning, LoRA, QLoRA, continual learning, and catastrophic forgetting through structured cases.",
+  "upload_type": "software",
+  "access_right": "open",
+  "license": "MIT",
+  "creators": [
+    {
+      "name": "Chen, Tzu-Chun",
+      "orcid": "0000-0002-8872-5318"
+    }
+  ],
+  "keywords": [
+    "fine-tuning",
+    "LoRA",
+    "QLoRA",
+    "continual learning",
+    "education"
+  ]
+}
+

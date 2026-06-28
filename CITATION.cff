@@ -1,0 +1,21 @@
+# YAML 1.2
+---
+cff-version: 1.2.0
+title: "Learn Finetuning"
+message: "If you use this project, please cite the repository and preserve the authorship and license notices."
+type: software
+authors:
+  - family-names: "Chen"
+    given-names: "Tzu-Chun"
+    orcid: "https://orcid.org/0000-0002-8872-5318"
+abstract: "Learn Finetuning is a hands-on educational repository for understanding and implementing fine-tuning, LoRA, QLoRA, continual learning, and catastrophic forgetting through structured cases."
+repository-code: "https://github.com/ginaecho/learn-finetuning"
+url: "https://github.com/ginaecho/learn-finetuning"
+license: "MIT"
+keywords:
+  - "fine-tuning"
+  - "LoRA"
+  - "QLoRA"
+  - "continual learning"
+  - "education"
+
