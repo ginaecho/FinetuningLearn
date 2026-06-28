@@ -1,5 +1,7 @@
 # Learn Finetuning
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21009806.svg)](https://doi.org/10.5281/zenodo.21009806)
+
 Learning fine-tuning from real hands-on examples — understand the theory, then implement it, step by step.
 
 Each **case** has three layers so you can learn the way that suits you:
